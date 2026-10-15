@@ -310,7 +310,7 @@ ThinkUtils/
 
 ### Documentation
 
-Full documentation at [thinkutils.nrl.ai](https://thinkutils.nrl.ai), or browse the `docs/` directory:
+Full documentation at [tysontranthai.github.io/ThinkUtils-Maintained-Upgraded](https://tysontranthai.github.io/ThinkUtils-Maintained-Upgraded/), or browse the `docs/` directory:
 - [Getting Started](docs/guide/getting-started.md) — Setup and first run
 - [Installation](docs/guide/installation.md) — Install methods
 - [Permissions](docs/guide/permissions.md) — How permissions work
