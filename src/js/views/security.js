@@ -241,6 +241,112 @@ async function setupBiometricsEvents() {
   });
 }
 
+function resetTouchIdVisuals() {
+  const stage = document.getElementById('touch-id-stage');
+  if (stage) {
+    stage.className = 'touch-id-stage';
+  }
+  const meterRing = document.getElementById('touch-id-meter-ring');
+  if (meterRing) {
+    meterRing.style.strokeDashoffset = '295.3';
+    meterRing.style.stroke = '';
+  }
+  for (let i = 1; i <= 7; i++) {
+    const ridge = document.getElementById(`fp-ridge-${i}`);
+    if (ridge) {
+      ridge.setAttribute('class', 'fp-ridge');
+    }
+  }
+}
+
+function updateTouchIdEnrollProgress(percent, isDone, isSuccess) {
+  const clampedPercent = Math.max(0, Math.min(100, Number(percent) || 0));
+  const activeRidges = Math.min(7, Math.ceil((clampedPercent / 100) * 7));
+
+  for (let i = 1; i <= 7; i++) {
+    const ridge = document.getElementById(`fp-ridge-${i}`);
+    if (ridge) {
+      ridge.setAttribute('class', i <= activeRidges ? 'fp-ridge active' : 'fp-ridge');
+    }
+  }
+
+  const meterRing = document.getElementById('touch-id-meter-ring');
+  if (meterRing) {
+    const circumference = 295.3;
+    meterRing.style.strokeDashoffset = String(circumference * (1 - clampedPercent / 100));
+  }
+
+  const ripple = document.getElementById('touch-id-ripple');
+  if (ripple) {
+    ripple.classList.remove('pulse');
+    void ripple.offsetWidth;
+    ripple.classList.add('pulse');
+  }
+
+  const stage = document.getElementById('touch-id-stage');
+  if (stage && isDone) {
+    if (isSuccess) {
+      stage.className = 'touch-id-stage completed';
+    } else {
+      stage.className = 'touch-id-stage failed';
+    }
+  }
+}
+
+function updateTouchIdVerifyState(status, isDone, isSuccess) {
+  const stage = document.getElementById('touch-id-stage');
+  const meterRing = document.getElementById('touch-id-meter-ring');
+
+  if (status === 'match' || (isDone && isSuccess)) {
+    if (stage) {
+      stage.className = 'touch-id-stage completed';
+    }
+    if (meterRing) {
+      meterRing.style.strokeDashoffset = '0';
+      meterRing.style.stroke = '#10b981';
+    }
+    for (let i = 1; i <= 7; i++) {
+      const ridge = document.getElementById(`fp-ridge-${i}`);
+      if (ridge) {
+        ridge.setAttribute('class', 'fp-ridge verified');
+      }
+    }
+  } else if (status === 'no-match' || (isDone && !isSuccess)) {
+    if (stage) {
+      stage.className = 'touch-id-stage failed';
+    }
+    if (meterRing) {
+      meterRing.style.stroke = '#ef4444';
+    }
+  } else {
+    if (stage) {
+      stage.className = 'touch-id-stage';
+    }
+    if (meterRing) {
+      meterRing.style.strokeDashoffset = '147';
+      meterRing.style.stroke = '#38bdf8';
+    }
+    for (let i = 1; i <= 7; i++) {
+      const ridge = document.getElementById(`fp-ridge-${i}`);
+      if (ridge) {
+        ridge.setAttribute('class', 'fp-ridge scanning');
+      }
+    }
+  }
+}
+
+function setFaceIdState(state) {
+  const stage = document.getElementById('face-id-stage');
+  if (!stage) {
+    return;
+  }
+  if (state === 'idle') {
+    stage.className = 'face-id-stage';
+  } else {
+    stage.className = `face-id-stage ${state}`;
+  }
+}
+
 function handleFingerprintEnrollProgress(payload) {
   if (!payload) {
     return;
@@ -263,6 +369,8 @@ function handleFingerprintEnrollProgress(payload) {
   if (stepEl && payload.message) {
     stepEl.textContent = payload.message;
   }
+
+  updateTouchIdEnrollProgress(payload.percent, payload.done, payload.success);
 
   if (payload.done) {
     if (banner) {
@@ -301,6 +409,8 @@ function handleFingerprintVerifyProgress(payload) {
   if (stepEl && payload.message) {
     stepEl.textContent = payload.message;
   }
+
+  updateTouchIdVerifyState(payload.status, payload.done, payload.success);
 
   if (payload.done) {
     if (banner) {
@@ -378,6 +488,8 @@ async function handleEnrollFinger() {
   const stepEl = document.getElementById('fp-progress-step');
   const btn = document.getElementById('btn-enroll-finger');
 
+  resetTouchIdVisuals();
+
   if (progressBox) {
     progressBox.style.display = 'flex';
   }
@@ -419,6 +531,7 @@ async function handleEnrollFinger() {
     await loadBiometricsStatus();
   } catch (err) {
     console.error('[Biometrics] Enroll error:', err);
+    updateTouchIdEnrollProgress(0, true, false);
     if (banner) {
       banner.style.display = 'block';
       banner.className = 'settings-status-banner error';
@@ -434,6 +547,7 @@ async function handleEnrollFinger() {
     setTimeout(() => {
       if (progressBox && percentEl?.textContent === '100%') {
         progressBox.style.display = 'none';
+        resetTouchIdVisuals();
       }
     }, 4000);
   }
@@ -446,6 +560,7 @@ async function handleCancelFp() {
     if (progressBox) {
       progressBox.style.display = 'none';
     }
+    resetTouchIdVisuals();
     showNotification('Fingerprint action cancelled', 'info');
   } catch (err) {
     console.error('[Biometrics] Cancel error:', err);
@@ -460,6 +575,9 @@ async function handleVerifyFinger() {
   const fillEl = document.getElementById('fp-progress-bar-fill');
   const stepEl = document.getElementById('fp-progress-step');
   const btn = document.getElementById('btn-verify-finger');
+
+  resetTouchIdVisuals();
+  updateTouchIdVerifyState('waiting', false, false);
 
   if (progressBox) {
     progressBox.style.display = 'flex';
@@ -497,9 +615,11 @@ async function handleVerifyFinger() {
         : 'settings-status-banner error';
       banner.textContent = response.message;
     }
+    updateTouchIdVerifyState(response.success ? 'match' : 'no-match', true, response.success);
     showNotification(response.message, response.success ? 'success' : 'error');
   } catch (err) {
     console.error('[Biometrics] Verify error:', err);
+    updateTouchIdVerifyState('error', true, false);
     if (banner) {
       banner.style.display = 'block';
       banner.className = 'settings-status-banner error';
@@ -515,6 +635,7 @@ async function handleVerifyFinger() {
     setTimeout(() => {
       if (progressBox) {
         progressBox.style.display = 'none';
+        resetTouchIdVisuals();
       }
     }, 4000);
   }
@@ -743,6 +864,7 @@ async function handleAddFaceModel() {
   if (progressBox) {
     progressBox.style.display = 'flex';
   }
+  setFaceIdState('scanning');
   if (stepEl) {
     stepEl.textContent = `Capturing facial profile "${label}"... Look directly at the IR sensor.`;
   }
@@ -766,6 +888,17 @@ async function handleAddFaceModel() {
         : 'settings-status-banner error';
       banner.textContent = response.message;
     }
+    if (response.success) {
+      setFaceIdState('completed');
+      if (stepEl) {
+        stepEl.textContent = 'Face profile recorded successfully!';
+      }
+    } else {
+      setFaceIdState('failed');
+      if (stepEl) {
+        stepEl.textContent = 'Face capture was not completed.';
+      }
+    }
     showNotification(response.message, response.success ? 'success' : 'error');
     if (input) {
       input.value = '';
@@ -773,10 +906,14 @@ async function handleAddFaceModel() {
     await loadBiometricsStatus();
   } catch (err) {
     console.error('[Biometrics] Add face model error:', err);
+    setFaceIdState('failed');
     if (banner) {
       banner.style.display = 'block';
       banner.className = 'settings-status-banner error';
       banner.textContent = `Face capture error: ${err}`;
+    }
+    if (stepEl) {
+      stepEl.textContent = `Face capture error: ${err}`;
     }
     showNotification(`Face capture error: ${err}`, 'error');
   } finally {
@@ -788,6 +925,7 @@ async function handleAddFaceModel() {
     setTimeout(() => {
       if (progressBox) {
         progressBox.style.display = 'none';
+        setFaceIdState('idle');
       }
     }, 4000);
   }
@@ -795,7 +933,17 @@ async function handleAddFaceModel() {
 
 async function handleTestFace() {
   const banner = document.getElementById('face-action-banner');
+  const progressBox = document.getElementById('face-progress-box');
+  const stepEl = document.getElementById('face-progress-step');
   const btn = document.getElementById('btn-test-face');
+
+  if (progressBox) {
+    progressBox.style.display = 'flex';
+  }
+  setFaceIdState('scanning');
+  if (stepEl) {
+    stepEl.textContent = 'Testing IR camera recognition... Look directly at the sensor.';
+  }
 
   if (btn) {
     btn.disabled = true;
@@ -818,11 +966,26 @@ async function handleTestFace() {
         : 'settings-status-banner error';
       banner.textContent = response.message;
     }
+    if (response.success) {
+      setFaceIdState('completed');
+      if (stepEl) {
+        stepEl.textContent = response.message || 'Face matched successfully!';
+      }
+    } else {
+      setFaceIdState('failed');
+      if (stepEl) {
+        stepEl.textContent = response.message || 'Face recognition failed.';
+      }
+    }
     showNotification(response.message, response.success ? 'success' : 'error');
   } catch (err) {
+    setFaceIdState('failed');
     if (banner) {
       banner.className = 'settings-status-banner error';
       banner.textContent = `Test error: ${err}`;
+    }
+    if (stepEl) {
+      stepEl.textContent = `Test error: ${err}`;
     }
     showNotification(`Test error: ${err}`, 'error');
   } finally {
@@ -831,6 +994,12 @@ async function handleTestFace() {
       btn.innerHTML =
         '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Test Recognition';
     }
+    setTimeout(() => {
+      if (progressBox) {
+        progressBox.style.display = 'none';
+        setFaceIdState('idle');
+      }
+    }, 4000);
   }
 }
 

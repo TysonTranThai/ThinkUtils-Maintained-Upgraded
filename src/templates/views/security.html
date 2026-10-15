@@ -196,7 +196,7 @@
         </div>
       </div>
 
-      <!-- Interactive Fingerprint Progress Box (Enrollment & Verification) -->
+      <!-- Interactive Fingerprint Progress Box (Apple Touch ID Style) -->
       <div id="fp-progress-box" class="bio-progress-box" style="display: none">
         <div class="bio-progress-header">
           <div class="bio-progress-title-row">
@@ -205,6 +205,83 @@
           </div>
           <span class="bio-progress-percent" id="fp-progress-percent">0%</span>
         </div>
+
+        <!-- Apple Touch ID Animated Fingerprint Stage -->
+        <div class="touch-id-stage" id="touch-id-stage">
+          <div class="touch-id-circle-wrap">
+            <div class="touch-id-ripple" id="touch-id-ripple"></div>
+            <svg class="touch-id-svg" viewBox="0 0 100 120" id="touch-id-svg">
+              <defs>
+                <lineargradient id="ridge-grad-active" x1="0%" y1="100%" x2="0%" y2="0%">
+                  <stop offset="0%" stop-color="#ff4438" />
+                  <stop offset="100%" stop-color="#e2231a" />
+                </lineargradient>
+                <lineargradient id="ridge-grad-success" x1="0%" y1="100%" x2="0%" y2="0%">
+                  <stop offset="0%" stop-color="#10b981" />
+                  <stop offset="100%" stop-color="#34d399" />
+                </lineargradient>
+              </defs>
+
+              <!-- Progress Ring -->
+              <circle cx="50" cy="60" r="47" class="touch-id-track-ring" />
+              <circle cx="50" cy="60" r="47" class="touch-id-meter-ring" id="touch-id-meter-ring" />
+
+              <!-- Fingerprint Ridges -->
+              <g class="fp-ridges" id="fp-ridges">
+                <!-- Ridge 1 (Center Core) -->
+                <path
+                  class="fp-ridge"
+                  id="fp-ridge-1"
+                  d="M47,62 C47,56 53,56 53,62 C53,70 49,76 49,82"
+                />
+                <!-- Ridge 2 -->
+                <path
+                  class="fp-ridge"
+                  id="fp-ridge-2"
+                  d="M41,63 C41,51 59,51 59,63 C59,74 55,82 53,88"
+                />
+                <!-- Ridge 3 -->
+                <path
+                  class="fp-ridge"
+                  id="fp-ridge-3"
+                  d="M35,64 C35,45 65,45 65,64 C65,79 59,89 57,94"
+                />
+                <!-- Ridge 4 -->
+                <path
+                  class="fp-ridge"
+                  id="fp-ridge-4"
+                  d="M29,66 C29,39 71,39 71,66 C71,83 65,95 62,100"
+                />
+                <!-- Ridge 5 -->
+                <path
+                  class="fp-ridge"
+                  id="fp-ridge-5"
+                  d="M23,68 C23,33 77,33 77,68 C77,88 69,101 66,105"
+                />
+                <!-- Ridge 6 -->
+                <path
+                  class="fp-ridge"
+                  id="fp-ridge-6"
+                  d="M18,70 C18,27 82,27 82,70 C82,92 73,105 70,109"
+                />
+                <!-- Ridge 7 (Outer edge) -->
+                <path
+                  class="fp-ridge"
+                  id="fp-ridge-7"
+                  d="M13,74 C13,21 87,21 87,74 C87,85 84,93 80,100 M20,86 C16,91 14,98 14,104"
+                />
+              </g>
+
+              <!-- Success Checkmark -->
+              <path
+                class="fp-success-checkmark"
+                id="fp-success-checkmark"
+                d="M34 60 L46 72 L68 48"
+              />
+            </svg>
+          </div>
+        </div>
+
         <div class="bio-progress-bar-container">
           <div class="bio-progress-bar-fill" id="fp-progress-bar-fill" style="width: 0%"></div>
         </div>
@@ -357,7 +434,7 @@
         </div>
       </div>
 
-      <!-- Interactive Face Progress Box (Enrollment & Testing) -->
+      <!-- Interactive Face Progress Box (Apple Face ID Style) -->
       <div id="face-progress-box" class="bio-progress-box" style="display: none">
         <div class="bio-progress-header">
           <div class="bio-progress-title-row">
@@ -366,6 +443,61 @@
           </div>
           <span class="bio-progress-percent" id="face-progress-percent"></span>
         </div>
+
+        <!-- Apple Face ID Viewport & Scanning Reticle -->
+        <div class="face-id-stage" id="face-id-stage">
+          <div class="face-id-viewport" id="face-id-viewport">
+            <svg class="face-id-svg" viewBox="0 0 120 120" id="face-id-svg">
+              <defs>
+                <lineargradient id="face-laser-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stop-color="rgba(168, 85, 247, 0)" />
+                  <stop offset="50%" stop-color="rgba(168, 85, 247, 0.85)" />
+                  <stop offset="100%" stop-color="rgba(168, 85, 247, 0)" />
+                </lineargradient>
+              </defs>
+
+              <!-- 4 Dynamic Corner Brackets -->
+              <g class="face-id-corners" id="face-id-corners">
+                <path class="face-corner tl" d="M 16 34 L 16 22 Q 16 16 22 16 L 34 16" />
+                <path class="face-corner tr" d="M 86 16 L 98 16 Q 104 16 104 22 L 104 34" />
+                <path class="face-corner br" d="M 104 86 L 104 98 Q 104 104 98 104 L 86 104" />
+                <path class="face-corner bl" d="M 34 104 L 22 104 Q 16 104 16 98 L 16 86" />
+              </g>
+
+              <!-- Depth Scanning Rings -->
+              <circle cx="60" cy="60" r="41" class="face-depth-track" />
+              <circle cx="60" cy="60" r="41" class="face-depth-ring" id="face-depth-ring" />
+
+              <!-- Face ID Contours & Smiley -->
+              <g class="face-id-contours" id="face-id-contours">
+                <path
+                  class="face-contour-head"
+                  d="M 40 46 C 40 33 80 33 80 46 C 80 67 74 81 60 83 C 46 81 40 67 40 46 Z"
+                />
+                <path class="face-eye left" d="M 48 48 Q 51 46 54 48" />
+                <circle cx="51" cy="51" r="2.5" class="face-eye-pupil" />
+                <path class="face-eye right" d="M 66 48 Q 69 46 72 48" />
+                <circle cx="69" cy="51" r="2.5" class="face-eye-pupil" />
+                <path class="face-nose" d="M 60 52 L 58 62 L 63 62" />
+                <path class="face-mouth" id="face-mouth" d="M 50 69 Q 60 77 70 69" />
+              </g>
+
+              <!-- Laser Scan Sweep Line -->
+              <line
+                x1="22"
+                y1="60"
+                x2="98"
+                y2="60"
+                class="face-id-laser-beam"
+                id="face-id-laser-beam"
+              />
+
+              <!-- Face ID Success Checkmark -->
+              <path class="face-id-checkmark" id="face-id-checkmark" d="M 38 60 L 52 74 L 82 44" />
+            </svg>
+          </div>
+        </div>
+
         <div class="bio-progress-footer">
           <span class="bio-progress-step" id="face-progress-step"
             >Capturing facial features... Look directly at the sensor.</span
