@@ -24,6 +24,9 @@ mkdir -p "$HOME/.local/bin" \
          "$HOME/.local/share/icons/hicolor/512x512/apps" \
          "$HOME/.local/share/icons/hicolor/scalable/apps"
 
+# Terminate any running instance before replacing binary
+pkill -x thinkutils 2>/dev/null || true
+
 # 1. Install application binary
 install -m 755 "src-tauri/target/release/thinkutils" "$HOME/.local/bin/thinkutils"
 echo "✓ Installed executable: $HOME/.local/bin/thinkutils"
