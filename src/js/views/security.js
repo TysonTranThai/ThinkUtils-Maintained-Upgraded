@@ -689,6 +689,16 @@ async function handleConfigurePam() {
   }
 }
 
+async function handleOpenKeyringManager() {
+  try {
+    await invoke('open_keyring_manager');
+    showNotification('Opened Passwords and Keys (Seahorse)', 'info');
+  } catch (err) {
+    console.error('[Biometrics] Keyring manager error:', err);
+    showNotification(`Could not launch Seahorse: ${err}`, 'error');
+  }
+}
+
 function updateSecurityUI(status) {
   // Update ClamAV status
   const statusBadge = document.getElementById('clamav-status-badge');
@@ -812,6 +822,11 @@ export function setupSecurityHandlers() {
     chipPamHw.title =
       'Click to enable or repair PAM biometric authentication (login, sudo, lock screen)';
     chipPamHw.addEventListener('click', handleConfigurePam);
+  }
+
+  const btnOpenSeahorse = document.getElementById('btn-open-seahorse');
+  if (btnOpenSeahorse) {
+    btnOpenSeahorse.addEventListener('click', handleOpenKeyringManager);
   }
 
   // Attach Tauri biometrics streaming event listeners

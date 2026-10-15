@@ -837,6 +837,38 @@ pub fn configure_biometric_pam() -> BiometricActionResponse {
     }
 }
 
+#[tauri::command]
+pub fn open_keyring_manager() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        if Command::new("control.exe")
+            .args(["/name", "Microsoft.CredentialManager"])
+            .spawn()
+            .is_ok()
+        {
+            return Ok(());
+        }
+        return Err("Could not launch Windows Credential Manager.".to_string());
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        if Command::new("gtk-launch")
+            .arg("org.gnome.seahorse.Application")
+            .spawn()
+            .is_ok()
+            || Command::new("gtk-launch").arg("seahorse").spawn().is_ok()
+            || Command::new("seahorse").spawn().is_ok()
+        {
+            return Ok(());
+        }
+        Err(
+            "Could not launch Seahorse (Passwords & Keys). Please ensure 'seahorse' is installed."
+                .to_string(),
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

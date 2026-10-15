@@ -306,6 +306,115 @@
       <!-- Live Enrollment / Action Status Banner -->
       <div id="fp-action-banner" class="settings-status-banner" style="display: none"></div>
     </div>
+
+    <!-- GNOME Keyring & Cold-Boot Autounlock Card -->
+    <div class="card biometrics-feature-card" id="card-keyring">
+      <div class="card-header">
+        <div class="card-icon bio-icon-keyring">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="7.5" cy="15.5" r="5.5" />
+            <path d="m21 2-9.6 9.6" />
+            <path d="m15.5 7.5 3 3" />
+            <path d="m14 9 2 2" />
+          </svg>
+        </div>
+        <div class="card-header-content">
+          <div class="bio-title-row">
+            <h3>GNOME Keyring &amp; Cold-Boot Autounlock</h3>
+            <span class="extension-badge badge-info" id="keyring-status-badge"
+              >Keyring Setup Guide</span
+            >
+          </div>
+          <p class="card-description">
+            Resolve the post-boot "Unlock Login Keyring" prompt so you can log in 100%
+            passwordlessly with just your fingerprint.
+          </p>
+        </div>
+      </div>
+
+      <div class="keyring-guide-box">
+        <div class="banner banner-info" style="margin-bottom: 0">
+          <div class="banner-icon">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="16" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12.01" y2="8" />
+            </svg>
+          </div>
+          <div class="banner-text">
+            <strong>Why does Linux prompt for your password after a cold boot or shutdown?</strong>
+            <p style="margin: 4px 0 0 0; font-size: 12px; line-height: 1.4">
+              Linux encrypts your keyring with your password. When you log in with your fingerprint
+              after restarting or shutting down, the sensor verifies your identity but cannot
+              provide your text password to decrypt stored secrets (Wi-Fi passwords, browser login
+              tokens). Unlocking from screen lock does not prompt because your session was already
+              decrypted in memory.
+            </p>
+          </div>
+        </div>
+
+        <div class="bio-section-title">
+          <h4>How to Enable 100% Passwordless Boot</h4>
+        </div>
+        <ol class="keyring-guide-steps">
+          <li>Click <strong>Open Passwords &amp; Keys (Seahorse)</strong> below.</li>
+          <li>
+            In the left sidebar under <strong>Passwords</strong>, right-click
+            <strong>Login</strong> (or Default Keyring) and select <strong>Change Password</strong>.
+          </li>
+          <li>Enter your current login password when prompted.</li>
+          <li>
+            Leave both <strong>New Password</strong> and
+            <strong>Confirm Password</strong> completely blank and click <strong>Continue</strong>.
+          </li>
+          <li>Confirm the prompt <em>"Store passwords unencrypted"</em>.</li>
+        </ol>
+
+        <div class="keyring-action-row">
+          <button id="btn-open-seahorse" class="btn-primary">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            Open Passwords &amp; Keys (Seahorse)
+          </button>
+          <span class="keyring-note-badge">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            Enables instant one-touch cold-boot login
+          </span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Panel 2: ClamAV Antivirus -->

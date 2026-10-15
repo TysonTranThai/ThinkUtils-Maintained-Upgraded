@@ -368,6 +368,7 @@ pub fn run() {
             biometrics::delete_fingerprint,
             biometrics::install_fingerprint_packages,
             biometrics::configure_biometric_pam,
+            biometrics::open_keyring_manager,
             // PAM Safe Configuration & Recovery
             pam::check_pam_health,
             pam::execute_pam_repair,
