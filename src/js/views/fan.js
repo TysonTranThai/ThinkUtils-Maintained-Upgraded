@@ -33,6 +33,7 @@ export function setupFanControl() {
       if (!sp) {
         return;
       }
+      setState('lastFanSpeedSet', null);
       if (sp === 'auto') {
         setFanMode('auto');
       } else if (sp === 'full-speed' || sp === 'full' || sp === 'max') {
@@ -157,16 +158,6 @@ function updateUIFromFanLevel(level) {
     if (levelStr !== lastNormalized) {
       setState('lastFanSpeedSet', null);
     }
-  }
-
-  // If the user has intentionally selected 'full' or 'manual' mode in the UI,
-  // do NOT allow a transient hardware reading of 'auto' to revert the user's selected mode!
-  // The backend supervisor ensures the requested mode is maintained against firmware resets.
-  if (currentMode === 'full' && (levelStr === 'auto' || levelStr === '')) {
-    return;
-  }
-  if (currentMode === 'manual' && (levelStr === 'auto' || levelStr === '')) {
-    return;
   }
 
   [elements.btnAuto, elements.btnManual, elements.btnCurve, elements.btnFull].forEach((btn) => {

@@ -219,7 +219,16 @@ export default class ThinkUtilsExtension extends Extension {
 
     if (this._fanLabel) {
       if (fan) {
-        this._fanLabel.text = `${fan.speed} RPM`;
+        let modeLabel = '';
+        const lvl = (fan.level || '').toString().toLowerCase();
+        if (lvl === 'auto') {
+          modeLabel = ' (Auto)';
+        } else if (lvl === 'full-speed' || lvl === 'disengaged') {
+          modeLabel = ' (Max)';
+        } else if (!isNaN(parseInt(lvl, 10))) {
+          modeLabel = ` (L${lvl})`;
+        }
+        this._fanLabel.text = `${fan.speed} RPM${modeLabel}`;
       } else {
         this._fanLabel.text = '-- RPM';
       }

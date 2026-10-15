@@ -483,6 +483,7 @@ pub async fn apply_fan_speed(app: &tauri::AppHandle, raw_speed: &str) -> Result<
             if speed != "auto" {
                 crate::fan_curve::arm_fan_watchdog().await;
             }
+            let _ = app.emit_to("main", "fan-speed-changed", serde_json::json!({ "speed": speed }));
             let _ = app.emit("fan-speed-changed", serde_json::json!({ "speed": speed }));
             Ok(format!("Fan speed set to: {}", speed))
         }

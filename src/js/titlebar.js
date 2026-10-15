@@ -135,17 +135,28 @@ async function updateTitlebarStats() {
         }
       }
 
-      // Extract fan RPM
+      // Extract fan RPM and mode
       let fanSpeed = null;
-      for (const val of Object.values(fans)) {
-        const num = parseInt(val);
-        if (!isNaN(num)) {
-          fanSpeed = num;
-          break;
+      for (const [key, val] of Object.entries(fans)) {
+        if (key.toLowerCase().includes('fan')) {
+          const num = parseInt(val, 10);
+          if (!isNaN(num)) {
+            fanSpeed = num;
+            break;
+          }
         }
       }
       if (fanEl && fanSpeed !== null) {
-        fanEl.textContent = `${fanSpeed} RPM`;
+        let modeLabel = '';
+        const level = (fans.level || '').toString().toLowerCase();
+        if (level === 'auto') {
+          modeLabel = ' (Auto)';
+        } else if (level === 'full-speed' || level === 'disengaged') {
+          modeLabel = ' (Max)';
+        } else if (!isNaN(parseInt(level, 10))) {
+          modeLabel = ` (L${level})`;
+        }
+        fanEl.textContent = `${fanSpeed} RPM${modeLabel}`;
       }
     }
 
