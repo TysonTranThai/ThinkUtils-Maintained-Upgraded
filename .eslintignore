@@ -3,5 +3,6 @@ dist/
 build/
 target/
 src-tauri/
+gnome-extension/
 *.backup.js
 *.min.js

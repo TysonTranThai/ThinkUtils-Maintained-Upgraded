@@ -7,7 +7,8 @@ export const state = {
   currentView: 'home',
   monitorInterval: null,
   homeInterval: null,
-  batteryInterval: null
+  batteryInterval: null,
+  titlebarInterval: null
 };
 
 export function setState(key, value) {

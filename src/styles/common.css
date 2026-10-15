@@ -96,6 +96,53 @@ body {
   letter-spacing: -0.01em;
 }
 
+.titlebar-center {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  line-height: 1.4;
+  cursor: default;
+  transition: all 0.2s ease;
+}
+
+.titlebar-stat:hover {
+  border-color: var(--border-light);
+  color: var(--text-primary);
+}
+
+.titlebar-stat .stat-icon {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.titlebar-stat .stat-val {
+  font-variant-numeric: tabular-nums;
+}
+
+.titlebar-stat.warning {
+  border-color: #f59e0b;
+  color: #f59e0b;
+}
+
+.titlebar-stat.danger {
+  border-color: var(--red-primary);
+  color: var(--red-primary);
+}
+
 .titlebar-buttons {
   display: flex;
   gap: 8px;

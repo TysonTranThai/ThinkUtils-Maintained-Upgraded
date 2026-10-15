@@ -30,3 +30,6 @@ docs/.vitepress/cache
 
 # GUI launch-test output (screenshots, OCR text, app logs)
 build/
+
+# GNOME Shell extension packages
+*.shell-extension.zip

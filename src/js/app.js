@@ -226,7 +226,13 @@ window.addEventListener('DOMContentLoaded', initializeApp);
 // Clear every tracked timer. The previous version listed two of the three and
 // read as though it were complete.
 window.addEventListener('beforeunload', () => {
-  for (const key of ['updateInterval', 'monitorInterval', 'homeInterval', 'batteryInterval']) {
+  for (const key of [
+    'updateInterval',
+    'monitorInterval',
+    'homeInterval',
+    'batteryInterval',
+    'titlebarInterval'
+  ]) {
     if (state[key]) {
       clearInterval(state[key]);
       setState(key, null);
