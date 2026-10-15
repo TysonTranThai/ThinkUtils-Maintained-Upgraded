@@ -396,25 +396,110 @@ pub fn get_fingerprint_status() -> FingerprintStatus {
     }
 }
 
+pub fn is_howdy_installed() -> bool {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let user_bin_howdy = format!("{}/.local/bin/howdy", home);
+    Path::new("/usr/bin/howdy").exists()
+        || Path::new("/usr/local/bin/howdy").exists()
+        || (!home.is_empty() && Path::new(&user_bin_howdy).exists())
+        || Path::new("/lib/security/howdy/cli.py").exists()
+        || Path::new("/usr/lib/security/howdy/cli.py").exists()
+        || Command::new("which")
+            .arg("howdy")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+}
+
+pub fn get_howdy_version() -> Option<String> {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let user_bin_howdy = format!("{}/.local/bin/howdy", home);
+
+    let direct_cmd = if Path::new("/usr/bin/howdy").exists() {
+        Command::new("howdy").arg("version").output()
+    } else if Path::new("/usr/local/bin/howdy").exists() {
+        Command::new("/usr/local/bin/howdy").arg("version").output()
+    } else if !home.is_empty() && Path::new(&user_bin_howdy).exists() {
+        Command::new(&user_bin_howdy).arg("version").output()
+    } else {
+        Command::new("/usr/bin/python3")
+            .args(["/lib/security/howdy/cli.py", "version"])
+            .output()
+    };
+
+    direct_cmd
+        .ok()
+        .and_then(|o| {
+            let text = String::from_utf8_lossy(&o.stdout);
+            let first = text.lines().next().map(|l| l.trim().to_string());
+            if first.as_ref().map(|l| !l.contains("root") && !l.is_empty()).unwrap_or(false) {
+                first
+            } else {
+                None
+            }
+        })
+        .or_else(|| {
+            Command::new("dpkg")
+                .args(["-s", "howdy"])
+                .output()
+                .ok()
+                .and_then(|o| {
+                    let text = String::from_utf8_lossy(&o.stdout);
+                    for line in text.lines() {
+                        if line.starts_with("Version:") {
+                            return Some(line.trim_start_matches("Version:").trim().to_string());
+                        }
+                    }
+                    None
+                })
+        })
+}
+
+fn get_current_login_user() -> String {
+    std::env::var("USER")
+        .or_else(|_| std::env::var("LOGNAME"))
+        .unwrap_or_else(|_| "root".to_string())
+}
+
+fn build_howdy_bash_command(subcommand: &str) -> String {
+    let user = get_current_login_user();
+    let user_arg = if user != "root" && !user.is_empty() {
+        format!("-U '{}'", user)
+    } else {
+        String::new()
+    };
+
+    format!(
+        "\
+if [ ! -x /usr/bin/howdy ]; then
+  cat << 'EOF' > /usr/bin/howdy
+#!/bin/sh
+exec /usr/bin/python3 /lib/security/howdy/cli.py \"$@\"
+EOF
+  chmod 755 /usr/bin/howdy 2>/dev/null || true
+  ln -sf /usr/bin/howdy /usr/local/bin/howdy 2>/dev/null || true
+fi
+chmod 755 /lib/security/howdy/cli.py 2>/dev/null || true
+if [ ! -f /lib/security/howdy/dlib-data/shape_predictor_5_face_landmarks.dat ]; then
+  if [ -x /lib/security/howdy/dlib-data/install.sh ]; then
+    (cd /lib/security/howdy/dlib-data && ./install.sh) 2>/dev/null || true
+  fi
+fi
+/usr/bin/python3 -c 'import dlib' 2>/dev/null || /usr/bin/python3 -m pip install --break-system-packages dlib 2>/dev/null || true
+/usr/bin/howdy {user_arg} {subcmd}
+",
+        user_arg = user_arg,
+        subcmd = subcommand
+    )
+}
+
 #[tauri::command]
 pub fn get_face_recognition_status() -> FaceRecognitionStatus {
     let (cameras, recommended_camera, ir_camera_found) = detect_cameras();
 
-    let howdy_installed = Command::new("which")
-        .arg("howdy")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false);
-
+    let howdy_installed = is_howdy_installed();
     let howdy_version = if howdy_installed {
-        Command::new("howdy")
-            .arg("version")
-            .output()
-            .ok()
-            .and_then(|o| {
-                let text = String::from_utf8_lossy(&o.stdout);
-                text.lines().next().map(|l| l.trim().to_string())
-            })
+        get_howdy_version()
     } else {
         None
     };
@@ -428,6 +513,7 @@ pub fn get_face_recognition_status() -> FaceRecognitionStatus {
             "/etc/howdy/config.ini",
             "/usr/local/etc/howdy/config.ini",
             "/usr/lib/security/howdy/config.ini",
+            "/lib/security/howdy/config.ini",
         ];
         for cp in &config_paths {
             if let Ok(content) = fs::read_to_string(cp) {
@@ -446,10 +532,50 @@ pub fn get_face_recognition_status() -> FaceRecognitionStatus {
             }
         }
 
-        // Read enrolled face models
-        if let Ok(output) = Command::new("howdy").arg("list").output() {
-            let text = String::from_utf8_lossy(&output.stdout);
-            models = parse_howdy_list_output(&text);
+        // 1. Try reading the JSON files in /lib/security/howdy/models/ or /etc/howdy/models/
+        for models_dir in &["/lib/security/howdy/models", "/etc/howdy/models"] {
+            if let Ok(entries) = fs::read_dir(models_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().map(|e| e == "dat").unwrap_or(false) {
+                        if let Ok(content) = fs::read_to_string(&path) {
+                            if let Ok(json_models) = serde_json::from_str::<Vec<serde_json::Value>>(&content) {
+                                for jm in json_models {
+                                    let id = jm.get("id").map(|v| v.to_string().trim_matches('"').to_string()).unwrap_or_default();
+                                    let label = jm.get("label").and_then(|v| v.as_str()).unwrap_or("Profile").to_string();
+                                    let time_sec = jm.get("time").and_then(|v| v.as_i64()).unwrap_or(0);
+                                    let date = if time_sec > 0 {
+                                        let naive = chrono::DateTime::from_timestamp(time_sec, 0);
+                                        naive.map(|d| d.format("%Y-%m-%d %H:%M:%S").to_string()).unwrap_or_else(|| "Enrolled".to_string())
+                                    } else {
+                                        "Enrolled".to_string()
+                                    };
+                                    models.push(FaceModel { id, label, date });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. If no direct files read, try howdy list command
+        if models.is_empty() {
+            let list_cmd = if Path::new("/usr/bin/howdy").exists() {
+                Command::new("howdy").arg("list").output()
+            } else if Path::new("/usr/local/bin/howdy").exists() {
+                Command::new("/usr/local/bin/howdy").arg("list").output()
+            } else if Path::new("/lib/security/howdy/cli.py").exists() {
+                Command::new("/usr/bin/python3")
+                    .args(["/lib/security/howdy/cli.py", "list"])
+                    .output()
+            } else {
+                Command::new("howdy").arg("list").output()
+            };
+            if let Ok(output) = list_cmd {
+                let text = String::from_utf8_lossy(&output.stdout);
+                models = parse_howdy_list_output(&text);
+            }
         }
     }
 
@@ -1064,21 +1190,37 @@ pub async fn install_howdy_packages(
 export DEBIAN_FRONTEND=noninteractive
 export HOWDY_NO_PROMPT=1
 export PIP_BREAK_SYSTEM_PACKAGES=1
-echo '=== [1/4] Updating package index ==='
+echo '=== [1/5] Updating package index ==='
 apt-get update -y
-echo '=== [2/4] Installing dependencies (OpenCV, V4L, FFmpeg, Python) ==='
-apt-get install -y python3-opencv v4l-utils ffmpeg libpam-python || apt-get install -y python3-opencv v4l-utils ffmpeg
-echo '=== [3/4] Downloading Howdy 2.6.1 package ==='
-curl -fsSL -o /tmp/howdy_2.6.1.deb https://github.com/boltgolt/howdy/releases/download/v2.6.1/howdy_2.6.1.deb || wget -O /tmp/howdy_2.6.1.deb https://github.com/boltgolt/howdy/releases/download/v2.6.1/howdy_2.6.1.deb
-echo '=== [4/4] Installing Howdy package ==='
-dpkg -i /tmp/howdy_2.6.1.deb || apt-get install -f -y
-rm -f /tmp/howdy_2.6.1.deb
+echo '=== [2/5] Installing camera & PAM dependencies ==='
+apt-get install -y python3-opencv v4l-utils ffmpeg libpam-python python3-pip python3-setuptools cmake build-essential libdlib-dev bzip2 curl wget || apt-get install -y python3-opencv v4l-utils ffmpeg bzip2 curl wget
+echo '=== [3/5] Setting up Howdy package ==='
+if [ ! -f /lib/security/howdy/cli.py ]; then
+  curl -fsSL -o /tmp/howdy_2.6.1.deb https://github.com/boltgolt/howdy/releases/download/v2.6.1/howdy_2.6.1.deb || wget -O /tmp/howdy_2.6.1.deb https://github.com/boltgolt/howdy/releases/download/v2.6.1/howdy_2.6.1.deb
+  dpkg -i /tmp/howdy_2.6.1.deb || apt-get install -f -y
+  rm -f /tmp/howdy_2.6.1.deb
+fi
+echo '=== [4/5] Creating Howdy CLI wrapper and downloading neural models ==='
+cat << 'EOF' > /usr/bin/howdy
+#!/bin/sh
+exec /usr/bin/python3 /lib/security/howdy/cli.py \"$@\"
+EOF
+chmod 755 /usr/bin/howdy /lib/security/howdy/cli.py 2>/dev/null || true
+ln -sf /usr/bin/howdy /usr/local/bin/howdy 2>/dev/null || true
+if [ ! -f /lib/security/howdy/dlib-data/shape_predictor_5_face_landmarks.dat ]; then
+  if [ -x /lib/security/howdy/dlib-data/install.sh ]; then
+    (cd /lib/security/howdy/dlib-data && ./install.sh) || true
+  fi
+fi
+/usr/bin/python3 -c 'import dlib' 2>/dev/null || /usr/bin/python3 -m pip install --break-system-packages dlib 2>/dev/null || true
+echo '=== [5/5] Configuring IR camera and PAM ==='
 if [ -f /lib/security/howdy/config.ini ]; then
   sed -i 's|^device_path = .*|device_path = {camera}|' /lib/security/howdy/config.ini
 fi
 if [ -f /etc/howdy/config.ini ]; then
   sed -i 's|^device_path = .*|device_path = {camera}|' /etc/howdy/config.ini
 fi
+pam-auth-update --package 2>/dev/null || true
 echo '=== ALL_DONE ==='
 ",
         camera = camera_target
@@ -1128,18 +1270,21 @@ echo '=== ALL_DONE ==='
             }
             logs.push(line_trimmed.clone());
 
-            if line_trimmed.contains("=== [1/4]") {
+            if line_trimmed.contains("=== [1/5]") {
                 current_stage = "Updating package repository index...".to_string();
                 current_percent = 15;
-            } else if line_trimmed.contains("=== [2/4]") {
+            } else if line_trimmed.contains("=== [2/5]") {
                 current_stage = "Installing camera & PAM dependencies...".to_string();
                 current_percent = 35;
-            } else if line_trimmed.contains("=== [3/4]") {
-                current_stage = "Downloading Howdy 2.6.1 deb package...".to_string();
-                current_percent = 65;
-            } else if line_trimmed.contains("=== [4/4]") {
-                current_stage = format!("Configuring Howdy on {}...", camera_target);
-                current_percent = 85;
+            } else if line_trimmed.contains("=== [3/5]") {
+                current_stage = "Setting up Howdy package...".to_string();
+                current_percent = 55;
+            } else if line_trimmed.contains("=== [4/5]") {
+                current_stage = "Creating CLI wrapper and downloading neural models...".to_string();
+                current_percent = 75;
+            } else if line_trimmed.contains("=== [5/5]") {
+                current_stage = format!("Configuring IR camera on {}...", camera_target);
+                current_percent = 90;
             } else if line_trimmed.contains("=== ALL_DONE ===") {
                 current_stage = "Installation completed!".to_string();
                 current_percent = 100;
@@ -1215,18 +1360,28 @@ pub async fn add_face_model(
         label.replace(|c: char| !c.is_alphanumeric() && c != '_' && c != '-', "")
     };
 
-    if let Some(ref cam) = camera_device {
+    let cam_script = if let Some(ref cam) = camera_device {
         if !cam.is_empty() && cam.starts_with("/dev/video") {
-            let cmd = format!(
-                "sed -i 's|^device_path = .*|device_path = {}|' /etc/howdy/config.ini 2>/dev/null; sed -i 's|^device_path = .*|device_path = {}|' /lib/security/howdy/config.ini 2>/dev/null",
+            format!(
+                "sed -i 's|^device_path = .*|device_path = {}|' /etc/howdy/config.ini 2>/dev/null; \
+                 sed -i 's|^device_path = .*|device_path = {}|' /lib/security/howdy/config.ini 2>/dev/null;\n",
                 cam, cam
-            );
-            let _ = Command::new("pkexec").args(["bash", "-c", &cmd]).output();
+            )
+        } else {
+            String::new()
         }
-    }
+    } else {
+        String::new()
+    };
+
+    let full_script = format!(
+        "{}{}",
+        cam_script,
+        build_howdy_bash_command(&format!("add '{}' -y", clean_label))
+    );
 
     let output = Command::new("pkexec")
-        .args(["howdy", "add", &clean_label, "-y"])
+        .args(["bash", "-c", &full_script])
         .output();
 
     match output {
@@ -1240,7 +1395,19 @@ pub async fn add_face_model(
                 message: if success {
                     format!("Face model '{}' added successfully", clean_label)
                 } else {
-                    format!("Failed to add face model: {}", stderr)
+                    let err_msg = if !stderr.trim().is_empty() {
+                        stderr.trim().to_string()
+                    } else if !stdout.trim().is_empty() {
+                        stdout
+                            .lines()
+                            .last()
+                            .unwrap_or("Failed to add face model")
+                            .trim()
+                            .to_string()
+                    } else {
+                        "Failed to add face model".to_string()
+                    };
+                    format!("Failed to add face model: {}", err_msg)
                 },
                 logs: vec![stdout, stderr.clone()],
                 error: if success { None } else { Some(stderr) },
@@ -1248,7 +1415,7 @@ pub async fn add_face_model(
         }
         Err(e) => BiometricActionResponse {
             success: false,
-            message: "Failed to run howdy add".to_string(),
+            message: format!("Failed to run howdy add: {}", e),
             logs: vec![e.to_string()],
             error: Some(e.to_string()),
         },
@@ -1257,8 +1424,9 @@ pub async fn add_face_model(
 
 #[tauri::command]
 pub fn test_face_model() -> BiometricActionResponse {
+    let script = build_howdy_bash_command("test");
     let output = Command::new("pkexec")
-        .args(["howdy", "test"])
+        .args(["bash", "-c", &script])
         .output();
 
     match output {
@@ -1272,7 +1440,12 @@ pub fn test_face_model() -> BiometricActionResponse {
                 message: if success {
                     "Face recognition test passed".to_string()
                 } else {
-                    format!("Face recognition test failed: {}", stderr)
+                    let err_msg = if !stderr.trim().is_empty() {
+                        stderr.trim().to_string()
+                    } else {
+                        "Test ended or cancelled".to_string()
+                    };
+                    format!("Face recognition test: {}", err_msg)
                 },
                 logs: vec![stdout, stderr.clone()],
                 error: if success { None } else { Some(stderr) },
@@ -1280,7 +1453,7 @@ pub fn test_face_model() -> BiometricActionResponse {
         }
         Err(e) => BiometricActionResponse {
             success: false,
-            message: "Failed to run howdy test".to_string(),
+            message: format!("Failed to run howdy test: {}", e),
             logs: vec![e.to_string()],
             error: Some(e.to_string()),
         },
@@ -1289,8 +1462,13 @@ pub fn test_face_model() -> BiometricActionResponse {
 
 #[tauri::command]
 pub fn remove_face_model(id: String) -> BiometricActionResponse {
+    let clean_id = id
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
+        .collect::<String>();
+    let script = build_howdy_bash_command(&format!("remove '{}' -y", clean_id));
     let output = Command::new("pkexec")
-        .args(["howdy", "remove", &id, "-y"])
+        .args(["bash", "-c", &script])
         .output();
 
     match output {
@@ -1300,7 +1478,7 @@ pub fn remove_face_model(id: String) -> BiometricActionResponse {
             if out.status.success() {
                 BiometricActionResponse {
                     success: true,
-                    message: format!("Face model #{} removed", id),
+                    message: format!("Face model #{} removed", clean_id),
                     logs: vec![stdout],
                     error: None,
                 }
@@ -1315,7 +1493,7 @@ pub fn remove_face_model(id: String) -> BiometricActionResponse {
         }
         Err(e) => BiometricActionResponse {
             success: false,
-            message: "Failed to run howdy remove".to_string(),
+            message: format!("Failed to run howdy remove: {}", e),
             logs: vec![e.to_string()],
             error: Some(e.to_string()),
         },
@@ -1324,8 +1502,9 @@ pub fn remove_face_model(id: String) -> BiometricActionResponse {
 
 #[tauri::command]
 pub fn clear_face_models() -> BiometricActionResponse {
+    let script = build_howdy_bash_command("clear -y");
     let output = Command::new("pkexec")
-        .args(["howdy", "clear", "-y"])
+        .args(["bash", "-c", &script])
         .output();
 
     match output {
@@ -1350,7 +1529,7 @@ pub fn clear_face_models() -> BiometricActionResponse {
         }
         Err(e) => BiometricActionResponse {
             success: false,
-            message: "Failed to run howdy clear".to_string(),
+            message: format!("Failed to run howdy clear: {}", e),
             logs: vec![e.to_string()],
             error: Some(e.to_string()),
         },

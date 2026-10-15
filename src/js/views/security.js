@@ -474,6 +474,14 @@ function handleBiometricInstallProgress(payload) {
       payload.stage || 'Installation finished',
       payload.success ? 'success' : 'error'
     );
+    if (payload.success) {
+      loadBiometricsStatus();
+      setTimeout(() => {
+        if (installBox) {
+          installBox.style.display = 'none';
+        }
+      }, 4000);
+    }
   }
 }
 
@@ -805,6 +813,16 @@ async function handleInstallHowdy() {
     }
     showNotification(response.message, response.success ? 'success' : 'error');
     await loadBiometricsStatus();
+    if (response.success) {
+      if (btn) {
+        btn.style.display = 'none';
+      }
+      setTimeout(() => {
+        if (installBox) {
+          installBox.style.display = 'none';
+        }
+      }, 4000);
+    }
   } catch (err) {
     console.error('[Biometrics] Howdy install error:', err);
     if (banner) {

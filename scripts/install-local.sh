@@ -47,7 +47,17 @@ echo "✓ Installed desktop application icons"
 update-desktop-database "$HOME/.local/share/applications/" 2>/dev/null || true
 gtk-update-icon-cache "$HOME/.local/share/icons/hicolor/" 2>/dev/null || true
 
-# 5. Install GNOME Shell extension
+# 5. Ensure Howdy CLI wrapper is accessible in ~/.local/bin if installed in system libraries
+if [ -f "/lib/security/howdy/cli.py" ] || [ -f "/usr/lib/security/howdy/cli.py" ]; then
+    cat << 'EOF' > "$HOME/.local/bin/howdy"
+#!/bin/sh
+exec /usr/bin/python3 /lib/security/howdy/cli.py "$@"
+EOF
+    chmod 755 "$HOME/.local/bin/howdy"
+    echo "✓ Installed howdy CLI wrapper: $HOME/.local/bin/howdy"
+fi
+
+# 6. Install GNOME Shell extension
 if [ -f "gnome-extension/install.sh" ]; then
     ./gnome-extension/install.sh || true
 fi
