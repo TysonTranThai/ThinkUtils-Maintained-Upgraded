@@ -355,22 +355,15 @@ pub fn run() {
             gnome_extension::enable_gnome_extension,
             gnome_extension::install_gnome_extension,
             gnome_extension::uninstall_gnome_extension,
-            // Biometrics & Windows Hello
+            // Biometrics & Fingerprint
             biometrics::get_biometric_overview,
             biometrics::get_fingerprint_status,
-            biometrics::get_face_recognition_status,
             biometrics::enroll_fingerprint,
             biometrics::cancel_fingerprint_action,
             biometrics::verify_fingerprint,
             biometrics::delete_fingerprint,
             biometrics::install_fingerprint_packages,
-            biometrics::configure_howdy_camera,
-            biometrics::install_howdy_packages,
-            biometrics::add_face_model,
-            biometrics::test_face_model,
             biometrics::configure_biometric_pam,
-            biometrics::remove_face_model,
-            biometrics::clear_face_models,
             // PAM Safe Configuration & Recovery
             pam::check_pam_health,
             pam::execute_pam_repair,

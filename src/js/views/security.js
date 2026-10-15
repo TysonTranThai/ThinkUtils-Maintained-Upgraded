@@ -51,7 +51,7 @@ function updateBiometricsUI(data) {
     return;
   }
 
-  const { fingerprint, face_recognition: face } = data;
+  const { fingerprint } = data;
 
   // --- 1. Status Chips ---
   const chipFpDesc = document.getElementById('chip-fingerprint-desc');
@@ -68,24 +68,10 @@ function updateBiometricsUI(data) {
     }
   }
 
-  const chipCamDesc = document.getElementById('chip-camera-desc');
-  const chipCamBadge = document.getElementById('chip-camera-badge');
-  if (chipCamDesc && chipCamBadge) {
-    if (face.ir_camera_found) {
-      chipCamDesc.textContent = `IR Camera (${face.recommended_camera || '/dev/video2'})`;
-      chipCamBadge.className = 'chip-badge badge-success';
-      chipCamBadge.textContent = 'IR Ready';
-    } else {
-      chipCamDesc.textContent = face.cameras.length > 0 ? 'Standard RGB Only' : 'No camera found';
-      chipCamBadge.className = 'chip-badge badge-neutral';
-      chipCamBadge.textContent = 'No IR';
-    }
-  }
-
   const chipPamDesc = document.getElementById('chip-pam-desc');
   const chipPamBadge = document.getElementById('chip-pam-badge');
   if (chipPamDesc && chipPamBadge) {
-    if (fingerprint.pam_auth_enabled || face.pam_auth_enabled) {
+    if (fingerprint.pam_auth_enabled) {
       chipPamDesc.textContent = 'Active for Sudo & Login';
       chipPamBadge.className = 'chip-badge badge-success';
       chipPamBadge.textContent = 'Active';
@@ -151,72 +137,6 @@ function updateBiometricsUI(data) {
 
       fpEnrolledList.querySelectorAll('.btn-del-finger').forEach((btn) => {
         btn.addEventListener('click', () => handleDeleteFinger(btn.dataset.id));
-      });
-    }
-  }
-
-  // --- 3. Facial Recognition Section ---
-  const faceEngineBadge = document.getElementById('face-engine-badge');
-  const btnInstallHowdy = document.getElementById('btn-install-howdy');
-  const selectCamera = document.getElementById('select-ir-camera');
-  const faceModelsList = document.getElementById('face-models-list');
-  const faceModelsCount = document.getElementById('face-models-count');
-
-  if (faceEngineBadge) {
-    faceEngineBadge.className = 'extension-badge';
-    if (!face.howdy_installed) {
-      faceEngineBadge.classList.add('badge-warning');
-      faceEngineBadge.textContent = 'Engine Missing';
-    } else if (face.models.length > 0) {
-      faceEngineBadge.classList.add('badge-success');
-      faceEngineBadge.textContent = 'Face Models Ready';
-    } else {
-      faceEngineBadge.classList.add('badge-neutral');
-      faceEngineBadge.textContent = 'Ready to Enroll';
-    }
-  }
-
-  if (btnInstallHowdy) {
-    btnInstallHowdy.style.display = face.howdy_installed ? 'none' : 'inline-flex';
-  }
-
-  if (selectCamera && face.cameras.length > 0) {
-    const activeDev =
-      face.configured_device ||
-      face.recommended_camera ||
-      (face.cameras[0] && face.cameras[0].path);
-    selectCamera.innerHTML = face.cameras
-      .map((cam) => {
-        const isSelected = cam.path === activeDev;
-        const tag = cam.is_infrared ? ' [Infrared - Recommended]' : ' [Color RGB]';
-        return `<option value="${escapeHtml(cam.path)}"${isSelected ? ' selected' : ''}>${escapeHtml(cam.path)} — ${escapeHtml(cam.name)}${tag}</option>`;
-      })
-      .join('');
-  }
-
-  if (faceModelsCount) {
-    const count = face.models.length;
-    faceModelsCount.textContent = `${count} ${count === 1 ? 'profile' : 'profiles'}`;
-  }
-
-  if (faceModelsList) {
-    if (face.models.length === 0) {
-      faceModelsList.innerHTML =
-        '<div class="bio-empty-placeholder">No face models registered yet. Add a profile below.</div>';
-    } else {
-      faceModelsList.innerHTML = face.models
-        .map(
-          (m) => `
-            <div class="bio-face-item" data-id="${escapeHtml(m.id)}">
-              <span>👤 ${escapeHtml(m.label)} (${escapeHtml(m.date)})</span>
-              <button class="btn-del-face" data-id="${escapeHtml(m.id)}" title="Delete face model">&times;</button>
-            </div>
-          `
-        )
-        .join('');
-
-      faceModelsList.querySelectorAll('.btn-del-face').forEach((btn) => {
-        btn.addEventListener('click', () => handleDeleteFaceModel(btn.dataset.id));
       });
     }
   }
@@ -337,18 +257,6 @@ function updateTouchIdVerifyState(status, isDone, isSuccess) {
   }
 }
 
-function setFaceIdState(state) {
-  const stage = document.getElementById('face-id-stage');
-  if (!stage) {
-    return;
-  }
-  if (state === 'idle') {
-    stage.className = 'face-id-stage';
-  } else {
-    stage.className = `face-id-stage ${state}`;
-  }
-}
-
 function handleFingerprintEnrollProgress(payload) {
   if (!payload) {
     return;
@@ -429,8 +337,7 @@ function handleBiometricInstallProgress(payload) {
   if (!payload) {
     return;
   }
-  const isFace = payload.target === 'face';
-  const prefix = isFace ? 'face' : 'fp';
+  const prefix = 'fp';
 
   const installBox = document.getElementById(`${prefix}-install-box`);
   const percentEl = document.getElementById(`${prefix}-install-percent`);
@@ -762,316 +669,6 @@ async function handleInstallFprintd() {
   }
 }
 
-async function handleInstallHowdy() {
-  const select = document.getElementById('select-ir-camera');
-  const irCamera = select ? select.value : null;
-  const banner = document.getElementById('face-action-banner');
-  const btn = document.getElementById('btn-install-howdy');
-  const installBox = document.getElementById('face-install-box');
-  const fillEl = document.getElementById('face-install-bar-fill');
-  const percentEl = document.getElementById('face-install-percent');
-  const stepEl = document.getElementById('face-install-step');
-  const logsEl = document.getElementById('face-install-logs-output');
-  const spinner = document.getElementById('face-install-spinner');
-
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = 'Installing...';
-  }
-
-  if (installBox) {
-    installBox.style.display = 'flex';
-  }
-  if (percentEl) {
-    percentEl.textContent = '0%';
-  }
-  if (fillEl) {
-    fillEl.style.width = '0%';
-  }
-  if (stepEl) {
-    stepEl.textContent = 'Requesting authorization to install Howdy...';
-  }
-  if (logsEl) {
-    logsEl.innerHTML = '';
-  }
-  if (spinner) {
-    spinner.style.display = 'inline-block';
-  }
-
-  if (banner) {
-    banner.style.display = 'none';
-  }
-
-  showNotification('Starting Howdy installation...', 'info');
-
-  try {
-    const response = await invoke('install_howdy_packages', { irCamera });
-    if (banner) {
-      banner.style.display = 'block';
-      banner.className = response.success
-        ? 'settings-status-banner success'
-        : 'settings-status-banner error';
-      banner.textContent = response.message;
-    }
-    showNotification(response.message, response.success ? 'success' : 'error');
-    await loadBiometricsStatus();
-    if (response.success) {
-      if (btn) {
-        btn.style.display = 'none';
-      }
-      setTimeout(() => {
-        if (installBox) {
-          installBox.style.display = 'none';
-        }
-      }, 4000);
-    }
-  } catch (err) {
-    console.error('[Biometrics] Howdy install error:', err);
-    if (banner) {
-      banner.style.display = 'block';
-      banner.className = 'settings-status-banner error';
-      banner.textContent = `Installation failed: ${err}`;
-    }
-    showNotification(`Installation failed: ${err}`, 'error');
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = 'Install Howdy';
-    }
-    if (spinner) {
-      spinner.style.display = 'none';
-    }
-  }
-}
-
-async function handleSetCamera() {
-  const select = document.getElementById('select-ir-camera');
-  const banner = document.getElementById('face-action-banner');
-  const devicePath = select ? select.value : '';
-
-  if (!devicePath) {
-    showNotification('Please select a camera device', 'error');
-    return;
-  }
-
-  try {
-    const response = await invoke('configure_howdy_camera', { devicePath });
-    if (banner) {
-      banner.style.display = 'block';
-      banner.className = response.success
-        ? 'settings-status-banner success'
-        : 'settings-status-banner error';
-      banner.textContent = response.message;
-    }
-    showNotification(response.message, response.success ? 'success' : 'error');
-    await loadBiometricsStatus();
-  } catch (err) {
-    showNotification(`Failed to configure camera: ${err}`, 'error');
-  }
-}
-
-async function handleAddFaceModel() {
-  const input = document.getElementById('input-face-label');
-  const select = document.getElementById('select-ir-camera');
-  const banner = document.getElementById('face-action-banner');
-  const progressBox = document.getElementById('face-progress-box');
-  const stepEl = document.getElementById('face-progress-step');
-  const btn = document.getElementById('btn-add-face-model');
-
-  const label = input && input.value.trim() ? input.value.trim() : 'ThinkPad User';
-  const cameraDevice = select ? select.value : null;
-
-  if (progressBox) {
-    progressBox.style.display = 'flex';
-  }
-  setFaceIdState('scanning');
-  if (stepEl) {
-    stepEl.textContent = `Capturing facial profile "${label}"... Look directly at the IR sensor.`;
-  }
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = 'Scanning...';
-  }
-
-  if (banner) {
-    banner.style.display = 'none';
-  }
-
-  showNotification('Look directly into the IR camera...', 'info');
-
-  try {
-    const response = await invoke('add_face_model', { label, cameraDevice });
-    if (banner) {
-      banner.style.display = 'block';
-      banner.className = response.success
-        ? 'settings-status-banner success'
-        : 'settings-status-banner error';
-      banner.textContent = response.message;
-    }
-    if (response.success) {
-      setFaceIdState('completed');
-      if (stepEl) {
-        stepEl.textContent = 'Face profile recorded successfully!';
-      }
-    } else {
-      setFaceIdState('failed');
-      if (stepEl) {
-        stepEl.textContent = response.message || 'Face capture was not completed.';
-      }
-    }
-    showNotification(response.message, response.success ? 'success' : 'error');
-    if (response.success && input) {
-      input.value = '';
-      invoke('configure_biometric_pam').catch((e) =>
-        console.warn('[Biometrics] Background PAM sync warning:', e)
-      );
-    }
-    await loadBiometricsStatus();
-  } catch (err) {
-    console.error('[Biometrics] Add face model error:', err);
-    setFaceIdState('failed');
-    if (banner) {
-      banner.style.display = 'block';
-      banner.className = 'settings-status-banner error';
-      banner.textContent = `Face capture error: ${err}`;
-    }
-    if (stepEl) {
-      stepEl.textContent = `Face capture error: ${err}`;
-    }
-    showNotification(`Face capture error: ${err}`, 'error');
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML =
-        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> Add Face Profile';
-    }
-    setTimeout(() => {
-      if (progressBox) {
-        progressBox.style.display = 'none';
-        setFaceIdState('idle');
-      }
-    }, 4000);
-  }
-}
-
-async function handleTestFace() {
-  const banner = document.getElementById('face-action-banner');
-  const progressBox = document.getElementById('face-progress-box');
-  const stepEl = document.getElementById('face-progress-step');
-  const btn = document.getElementById('btn-test-face');
-
-  if (progressBox) {
-    progressBox.style.display = 'flex';
-  }
-  setFaceIdState('scanning');
-  if (stepEl) {
-    stepEl.textContent = 'Testing IR camera recognition... Look directly at the sensor.';
-  }
-
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = 'Testing...';
-  }
-
-  if (banner) {
-    banner.style.display = 'block';
-    banner.className = 'settings-status-banner info';
-    banner.textContent = 'Testing IR camera recognition... Look at the screen.';
-  }
-
-  showNotification('Testing face recognition...', 'info');
-
-  try {
-    const response = await invoke('test_face_model');
-    if (banner) {
-      banner.className = response.success
-        ? 'settings-status-banner success'
-        : 'settings-status-banner error';
-      banner.textContent = response.message;
-    }
-    if (response.success) {
-      setFaceIdState('completed');
-      if (stepEl) {
-        stepEl.textContent = response.message || 'Face matched successfully!';
-      }
-    } else {
-      setFaceIdState('failed');
-      if (stepEl) {
-        stepEl.textContent = response.message || 'Face recognition failed.';
-      }
-    }
-    showNotification(response.message, response.success ? 'success' : 'error');
-  } catch (err) {
-    setFaceIdState('failed');
-    if (banner) {
-      banner.className = 'settings-status-banner error';
-      banner.textContent = `Test error: ${err}`;
-    }
-    if (stepEl) {
-      stepEl.textContent = `Test error: ${err}`;
-    }
-    showNotification(`Test error: ${err}`, 'error');
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML =
-        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Test Recognition';
-    }
-    setTimeout(() => {
-      if (progressBox) {
-        progressBox.style.display = 'none';
-        setFaceIdState('idle');
-      }
-    }, 4000);
-  }
-}
-
-async function handleDeleteFaceModel(id) {
-  const banner = document.getElementById('face-action-banner');
-  try {
-    const response = await invoke('remove_face_model', { id });
-    if (banner) {
-      banner.style.display = 'block';
-      banner.className = response.success
-        ? 'settings-status-banner success'
-        : 'settings-status-banner error';
-      banner.textContent = response.message;
-    }
-    showNotification(response.message, response.success ? 'success' : 'error');
-    await loadBiometricsStatus();
-  } catch (err) {
-    showNotification(`Failed to remove face model: ${err}`, 'error');
-  }
-}
-
-async function handleClearFaceModels() {
-  const confirmed = confirm('Are you sure you want to remove all face recognition profiles?');
-  if (!confirmed) {
-    return;
-  }
-
-  const banner = document.getElementById('face-action-banner');
-  try {
-    const response = await invoke('clear_face_models');
-    if (banner) {
-      banner.style.display = 'block';
-      banner.className = response.success
-        ? 'settings-status-banner success'
-        : 'settings-status-banner error';
-      banner.textContent = response.message;
-    }
-    showNotification(response.message, response.success ? 'success' : 'error');
-    await loadBiometricsStatus();
-  } catch (err) {
-    if (banner) {
-      banner.style.display = 'block';
-      banner.className = 'settings-status-banner error';
-      banner.textContent = `Failed to clear face models: ${err}`;
-    }
-    showNotification(`Failed to clear face models: ${err}`, 'error');
-  }
-}
-
 async function handleConfigurePam() {
   const chipPamDesc = document.getElementById('chip-pam-desc');
   if (chipPamDesc) {
@@ -1194,34 +791,9 @@ export function setupSecurityHandlers() {
     btnInstallFp.addEventListener('click', handleInstallFprintd);
   }
 
-  const btnSetCam = document.getElementById('btn-set-camera');
-  if (btnSetCam) {
-    btnSetCam.addEventListener('click', handleSetCamera);
-  }
-
-  const btnAddFace = document.getElementById('btn-add-face-model');
-  if (btnAddFace) {
-    btnAddFace.addEventListener('click', handleAddFaceModel);
-  }
-
-  const btnClearFace = document.getElementById('btn-clear-face-models');
-  if (btnClearFace) {
-    btnClearFace.addEventListener('click', handleClearFaceModels);
-  }
-
   const btnCancelFp = document.getElementById('btn-cancel-fp');
   if (btnCancelFp) {
     btnCancelFp.addEventListener('click', handleCancelFp);
-  }
-
-  const btnInstallHowdy = document.getElementById('btn-install-howdy');
-  if (btnInstallHowdy) {
-    btnInstallHowdy.addEventListener('click', handleInstallHowdy);
-  }
-
-  const btnTestFace = document.getElementById('btn-test-face');
-  if (btnTestFace) {
-    btnTestFace.addEventListener('click', handleTestFace);
   }
 
   const btnToggleFpLogs = document.getElementById('btn-toggle-fp-logs');
@@ -1231,16 +803,6 @@ export function setupSecurityHandlers() {
       const isHidden = fpLogsOutput.style.display === 'none';
       fpLogsOutput.style.display = isHidden ? 'block' : 'none';
       btnToggleFpLogs.textContent = isHidden ? 'Hide Logs' : 'Show Logs';
-    });
-  }
-
-  const btnToggleFaceLogs = document.getElementById('btn-toggle-face-logs');
-  const faceLogsOutput = document.getElementById('face-install-logs-output');
-  if (btnToggleFaceLogs && faceLogsOutput) {
-    btnToggleFaceLogs.addEventListener('click', () => {
-      const isHidden = faceLogsOutput.style.display === 'none';
-      faceLogsOutput.style.display = isHidden ? 'block' : 'none';
-      btnToggleFaceLogs.textContent = isHidden ? 'Hide Logs' : 'Show Logs';
     });
   }
 

@@ -14,7 +14,7 @@
           d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 004.07 9"
         />
       </svg>
-      <span>Windows Hello & Biometrics</span>
+      <span>Fingerprint & Biometrics</span>
     </button>
     <button class="security-tab-btn" id="tab-btn-antivirus" data-tab="antivirus">
       <svg
@@ -31,7 +31,7 @@
     </button>
   </div>
 
-  <!-- Panel 1: Windows Hello & Biometrics -->
+  <!-- Panel 1: Fingerprint & Biometrics -->
   <div id="security-panel-biometrics" class="security-panel active">
     <!-- Hardware Status Summary Header -->
     <div class="card biometrics-summary-card">
@@ -40,7 +40,7 @@
           <h3>ThinkPad Biometric Authentication</h3>
           <p class="card-description">
             Seamlessly unlock your ThinkPad with Windows Hello-compatible hardware: Goodix /
-            Synaptics fingerprint readers and infrared facial recognition.
+            Synaptics fingerprint readers.
           </p>
         </div>
         <button
@@ -72,15 +72,6 @@
             <span class="chip-desc" id="chip-fingerprint-desc">Scanning...</span>
           </div>
           <span class="chip-badge badge-neutral" id="chip-fingerprint-badge">--</span>
-        </div>
-
-        <div class="bio-chip" id="chip-camera-hw">
-          <span class="chip-icon">📷</span>
-          <div class="chip-info">
-            <span class="chip-title">Infrared (IR) Camera</span>
-            <span class="chip-desc" id="chip-camera-desc">Scanning...</span>
-          </div>
-          <span class="chip-badge badge-neutral" id="chip-camera-badge">--</span>
         </div>
 
         <div class="bio-chip" id="chip-pam-hw">
@@ -314,224 +305,6 @@
 
       <!-- Live Enrollment / Action Status Banner -->
       <div id="fp-action-banner" class="settings-status-banner" style="display: none"></div>
-    </div>
-
-    <!-- Facial Recognition Card (IR Camera / Windows Hello) -->
-    <div class="card biometrics-feature-card" id="card-facial-recognition">
-      <div class="card-header">
-        <div class="card-icon bio-icon-face">
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <path d="M9 9h.01M15 9h.01M8 15s1.5 2 4 2 4-2 4-2" />
-            <path
-              d="M4.93 4.93l4.24 4.24M14.83 9.17l4.24-4.24M19.07 19.07l-4.24-4.24M9.17 14.83l-4.24 4.24"
-            />
-          </svg>
-        </div>
-        <div class="card-header-content">
-          <div class="bio-title-row">
-            <h3>Windows Hello Facial Recognition</h3>
-            <span class="extension-badge badge-neutral" id="face-engine-badge">Checking...</span>
-          </div>
-          <p class="card-description" id="face-device-description">
-            Uses your ThinkPad's dedicated Infrared (IR) camera to authenticate instantly when you
-            look at the screen.
-          </p>
-        </div>
-      </div>
-
-      <!-- Camera Configuration -->
-      <div class="bio-camera-config">
-        <div class="bio-section-title">
-          <h4>Camera Sensor Configuration</h4>
-          <span class="bio-hint" id="face-camera-hint">Select the infrared (IR) sensor</span>
-        </div>
-        <div class="bio-input-row">
-          <div class="bio-field-group" style="flex: 1">
-            <select id="select-ir-camera" class="bio-select">
-              <option value="">Scanning cameras...</option>
-            </select>
-          </div>
-          <button id="btn-set-camera" class="btn-secondary">Set as IR Camera</button>
-        </div>
-      </div>
-
-      <!-- Enrolled Face Models -->
-      <div class="bio-enrolled-section">
-        <div class="bio-section-title">
-          <h4>Enrolled Face Profiles</h4>
-          <span class="bio-count" id="face-models-count">0 profiles</span>
-        </div>
-        <div id="face-models-list" class="bio-enrolled-chips">
-          <div class="bio-empty-placeholder">
-            No face models registered yet. Add a profile below.
-          </div>
-        </div>
-      </div>
-
-      <!-- Face Recognition Controls -->
-      <div class="bio-controls-section">
-        <div class="bio-input-row">
-          <div class="bio-field-group">
-            <label for="input-face-label">Profile Label</label>
-            <input
-              type="text"
-              id="input-face-label"
-              class="bio-text-input"
-              placeholder="e.g. Default, With Glasses, Low Light"
-            />
-          </div>
-
-          <div class="bio-btn-row">
-            <button id="btn-add-face-model" class="btn-primary">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-              Add Face Profile
-            </button>
-            <button
-              id="btn-test-face"
-              class="btn-secondary"
-              title="Test face recognition via camera"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-              Test Recognition
-            </button>
-            <button
-              id="btn-clear-face-models"
-              class="btn-secondary btn-danger-action"
-              title="Clear all enrolled face models"
-            >
-              Clear All
-            </button>
-            <button id="btn-install-howdy" class="btn-primary" style="display: none">
-              Install Howdy
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Interactive Face Progress Box (Apple Face ID Style) -->
-      <div id="face-progress-box" class="bio-progress-box" style="display: none">
-        <div class="bio-progress-header">
-          <div class="bio-progress-title-row">
-            <span class="bio-pulse-dot bio-pulse-purple" id="face-progress-dot"></span>
-            <span class="bio-progress-title" id="face-progress-title">Look at IR Camera</span>
-          </div>
-          <span class="bio-progress-percent" id="face-progress-percent"></span>
-        </div>
-
-        <!-- Apple Face ID Viewport & Scanning Reticle -->
-        <div class="face-id-stage" id="face-id-stage">
-          <div class="face-id-viewport" id="face-id-viewport">
-            <svg class="face-id-svg" viewBox="0 0 120 120" id="face-id-svg">
-              <defs>
-                <lineargradient id="face-laser-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stop-color="rgba(168, 85, 247, 0)" />
-                  <stop offset="50%" stop-color="rgba(168, 85, 247, 0.85)" />
-                  <stop offset="100%" stop-color="rgba(168, 85, 247, 0)" />
-                </lineargradient>
-              </defs>
-
-              <!-- 4 Dynamic Corner Brackets -->
-              <g class="face-id-corners" id="face-id-corners">
-                <path class="face-corner tl" d="M 16 34 L 16 22 Q 16 16 22 16 L 34 16" />
-                <path class="face-corner tr" d="M 86 16 L 98 16 Q 104 16 104 22 L 104 34" />
-                <path class="face-corner br" d="M 104 86 L 104 98 Q 104 104 98 104 L 86 104" />
-                <path class="face-corner bl" d="M 34 104 L 22 104 Q 16 104 16 98 L 16 86" />
-              </g>
-
-              <!-- Depth Scanning Rings -->
-              <circle cx="60" cy="60" r="41" class="face-depth-track" />
-              <circle cx="60" cy="60" r="41" class="face-depth-ring" id="face-depth-ring" />
-
-              <!-- Face ID Contours & Smiley -->
-              <g class="face-id-contours" id="face-id-contours">
-                <path
-                  class="face-contour-head"
-                  d="M 40 46 C 40 33 80 33 80 46 C 80 67 74 81 60 83 C 46 81 40 67 40 46 Z"
-                />
-                <path class="face-eye left" d="M 48 48 Q 51 46 54 48" />
-                <circle cx="51" cy="51" r="2.5" class="face-eye-pupil" />
-                <path class="face-eye right" d="M 66 48 Q 69 46 72 48" />
-                <circle cx="69" cy="51" r="2.5" class="face-eye-pupil" />
-                <path class="face-nose" d="M 60 52 L 58 62 L 63 62" />
-                <path class="face-mouth" id="face-mouth" d="M 50 69 Q 60 77 70 69" />
-              </g>
-
-              <!-- Laser Scan Sweep Line -->
-              <line
-                x1="22"
-                y1="60"
-                x2="98"
-                y2="60"
-                class="face-id-laser-beam"
-                id="face-id-laser-beam"
-              />
-
-              <!-- Face ID Success Checkmark -->
-              <path class="face-id-checkmark" id="face-id-checkmark" d="M 38 60 L 52 74 L 82 44" />
-            </svg>
-          </div>
-        </div>
-
-        <div class="bio-progress-footer">
-          <span class="bio-progress-step" id="face-progress-step"
-            >Capturing facial features... Look directly at the sensor.</span
-          >
-        </div>
-      </div>
-
-      <!-- Howdy Package Installer Box (Streaming deb & dependencies logs) -->
-      <div id="face-install-box" class="bio-install-box" style="display: none">
-        <div class="bio-install-header">
-          <div class="bio-install-status-row">
-            <span class="install-logs-spinner" id="face-install-spinner"></span>
-            <span class="bio-install-step" id="face-install-step"
-              >Preparing Howdy installation...</span
-            >
-          </div>
-          <span class="bio-install-percent" id="face-install-percent">0%</span>
-        </div>
-        <div class="bio-progress-bar-container">
-          <div
-            class="bio-progress-bar-fill bio-bar-purple"
-            id="face-install-bar-fill"
-            style="width: 0%"
-          ></div>
-        </div>
-        <div class="bio-terminal-header">
-          <span>Installation Terminal Output</span>
-          <button id="btn-toggle-face-logs" class="bio-toggle-btn">Hide Logs</button>
-        </div>
-        <div class="bio-terminal-output" id="face-install-logs-output"></div>
-      </div>
-
-      <!-- Live Action Status Banner -->
-      <div id="face-action-banner" class="settings-status-banner" style="display: none"></div>
     </div>
   </div>
 

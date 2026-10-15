@@ -68,7 +68,6 @@ pub struct PamHealthReport {
     pub is_healthy: bool,
     pub malformed_rules_found: Vec<String>,
     pub common_auth_has_unix: bool,
-    pub common_auth_has_howdy: bool,
     pub gdm_fingerprint_clean: bool,
     pub backups_available: Vec<String>,
 }
@@ -317,22 +316,14 @@ EOF
   chmod 644 /etc/pam.d/gdm-fingerprint
 fi
 
-echo "=== [4/5] Fixing Howdy Python 3 compatibility & settings ==="
-if [ -f /lib/security/howdy/pam.py ]; then
-  sed -i 's/import ConfigParser/try:\n    import configparser\nexcept ImportError:\n    import ConfigParser as configparser/' /lib/security/howdy/pam.py 2>/dev/null || true
-  sed -i 's/config = ConfigParser.ConfigParser()/config = configparser.ConfigParser()/' /lib/security/howdy/pam.py 2>/dev/null || true
-fi
-
-for cfg in /lib/security/howdy/config.ini /etc/howdy/config.ini; do
-  if [ -f "$cfg" ]; then
-    sed -i 's|^suppress_unknown = .*|suppress_unknown = true|' "$cfg" 2>/dev/null || true
-    sed -i 's|^dark_threshold = .*|dark_threshold = 85|' "$cfg" 2>/dev/null || true
-    sed -i 's|^capture_failed = .*|capture_failed = false|' "$cfg" 2>/dev/null || true
-    sed -i 's|^capture_successful = .*|capture_successful = false|' "$cfg" 2>/dev/null || true
+echo "=== [4/5] Ensuring Howdy and face recognition rules are completely purged ==="
+for f in /etc/pam.d/common-* /etc/pam.d/gdm-* /etc/pam.d/sudo; do
+  if [ -f "$f" ]; then
+    sed -i '/howdy/d' "$f" 2>/dev/null || true
+    sed -i '/pam_python.*pam\.py/d' "$f" 2>/dev/null || true
   fi
 done
-mkdir -p /lib/security/howdy/snapshots 2>/dev/null || true
-chmod 777 /lib/security/howdy/snapshots 2>/dev/null || true
+rm -rf /lib/security/howdy /etc/howdy /usr/share/pam-configs/howdy 2>/dev/null || true
 
 echo "=== [5/5] Re-synchronizing Debian PAM configuration via pam-auth-update ==="
 if [ -x /usr/sbin/pam-auth-update ]; then
@@ -396,7 +387,6 @@ echo "PAM_ROLLBACK_COMPLETE"
 pub fn check_pam_health() -> PamHealthReport {
     let mut malformed_rules = Vec::new();
     let mut common_auth_has_unix = false;
-    let mut common_auth_has_howdy = false;
     let mut gdm_fingerprint_clean = true;
 
     if let Ok(content) = fs::read_to_string("/etc/pam.d/common-auth") {
@@ -409,7 +399,7 @@ pub fn check_pam_health() -> PamHealthReport {
                 common_auth_has_unix = true;
             }
             if trimmed.contains("howdy/pam.py") || trimmed.contains("pam_howdy.so") {
-                common_auth_has_howdy = true;
+                malformed_rules.push(format!("/etc/pam.d/common-auth: residual face rule '{}'", trimmed));
             }
         }
     }
@@ -442,7 +432,6 @@ pub fn check_pam_health() -> PamHealthReport {
         is_healthy,
         malformed_rules_found: malformed_rules,
         common_auth_has_unix,
-        common_auth_has_howdy,
         gdm_fingerprint_clean,
         backups_available: backups,
     }

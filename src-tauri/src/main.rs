@@ -45,7 +45,6 @@ fn main() {
                     }
                 );
                 println!("Common auth has unix: {}", report.common_auth_has_unix);
-                println!("Common auth has howdy: {}", report.common_auth_has_howdy);
                 println!("GDM fingerprint clean: {}", report.gdm_fingerprint_clean);
                 if !report.malformed_rules_found.is_empty() {
                     println!("Malformed rules found:");
