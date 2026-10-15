@@ -33,3 +33,6 @@ build/
 
 # GNOME Shell extension packages
 *.shell-extension.zip
+
+# Auto-unpacked test fixtures (stored in hardware.tar.gz to prevent colon issues on Windows)
+src-tauri/tests/fixtures/hardware/

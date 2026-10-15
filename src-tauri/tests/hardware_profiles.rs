@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 //! Exercises the hardware read paths against captured real machines.
 //!
 //! ThinkUtils reads `/proc/acpi/ibm/fan` and a spread of `/sys` paths that do
@@ -10,8 +12,33 @@
 //! output, open a PR.
 
 use std::path::PathBuf;
+use std::sync::Once;
+
+static FIXTURES_INIT: Once = Once::new();
+
+fn ensure_fixtures() {
+    FIXTURES_INIT.call_once(|| {
+        let dir = PathBuf::from(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/hardware"
+        ));
+        if !dir.exists() {
+            let tarball = PathBuf::from(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/fixtures/hardware.tar.gz"
+            ));
+            if tarball.exists() {
+                let _ = std::process::Command::new("tar")
+                    .args(["-xzf", tarball.to_str().unwrap()])
+                    .current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures"))
+                    .status();
+            }
+        }
+    });
+}
 
 fn profile_root(name: &str) -> PathBuf {
+    ensure_fixtures();
     PathBuf::from(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/tests/fixtures/hardware"

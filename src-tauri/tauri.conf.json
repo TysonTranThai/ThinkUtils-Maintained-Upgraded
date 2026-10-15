@@ -35,6 +35,14 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "perMachine"
+      }
+    },
     "linux": {
       "deb": {
         "desktopTemplate": "../thinkutils.desktop"
