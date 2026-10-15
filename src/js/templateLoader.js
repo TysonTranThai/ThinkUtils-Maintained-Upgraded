@@ -10,7 +10,7 @@ const TEMPLATES = {
   performanceView: '/templates/views/performance.html',
   monitorView: '/templates/views/monitor.html',
   systemView: '/templates/views/system.html',
-  syncView: '/templates/views/sync.html',
+  settingsView: '/templates/views/settings.html',
   securityView: '/templates/views/security.html',
   mcpView: '/templates/views/mcp.html'
 };
@@ -23,25 +23,32 @@ export async function loadTemplates() {
   console.log('[TemplateLoader] Loading templates...');
 
   const templates = {};
+  const entries = Object.entries(TEMPLATES);
 
-  try {
-    const promises = Object.entries(TEMPLATES).map(async ([name, path]) => {
+  const results = await Promise.allSettled(
+    entries.map(async ([name, path]) => {
       const response = await fetch(path);
       if (!response.ok) {
-        throw new Error(`Failed to load template: ${path}`);
+        throw new Error(`Failed to load template: ${path} (HTTP ${response.status})`);
       }
       const html = await response.text();
-      templates[name] = html;
-      console.log(`[TemplateLoader] ✓ Loaded ${name}`);
-    });
+      return { name, html };
+    })
+  );
 
-    await Promise.all(promises);
-    console.log('[TemplateLoader] All templates loaded');
-    return templates;
-  } catch (error) {
-    console.error('[TemplateLoader] Error loading templates:', error);
-    throw error;
+  for (const res of results) {
+    if (res.status === 'fulfilled') {
+      templates[res.value.name] = res.value.html;
+      console.log(`[TemplateLoader] ✓ Loaded ${res.value.name}`);
+    } else {
+      console.error('[TemplateLoader] ✗ Error loading template:', res.reason);
+    }
   }
+
+  console.log(
+    `[TemplateLoader] ${Object.keys(templates).length}/${entries.length} templates loaded`
+  );
+  return templates;
 }
 
 /**
@@ -81,6 +88,7 @@ export function injectTemplates(templates) {
   // Inject views
   const viewsContainer = document.getElementById('views-container');
   if (viewsContainer) {
+    viewsContainer.innerHTML = '';
     const viewTemplates = [
       { key: 'homeView', id: 'home-view' },
       { key: 'fanView', id: 'fan-view' },
@@ -88,7 +96,7 @@ export function injectTemplates(templates) {
       { key: 'performanceView', id: 'performance-view' },
       { key: 'monitorView', id: 'monitor-view' },
       { key: 'systemView', id: 'system-view' },
-      { key: 'syncView', id: 'sync-view' },
+      { key: 'settingsView', id: 'settings-view' },
       { key: 'securityView', id: 'security-view' },
       { key: 'mcpView', id: 'mcp-view' }
     ];

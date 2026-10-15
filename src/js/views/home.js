@@ -25,7 +25,7 @@ export async function updateHomeView() {
 
       if (response.data.fans) {
         const fanSpeed = response.data.fans.Fan1 || response.data.fans.fan1;
-        const fanStatus = response.data.fans.status;
+        const fanLevel = response.data.fans.level;
 
         if (fanSpeed) {
           const fanSpeedEl = document.getElementById('home-fan-speed');
@@ -34,10 +34,21 @@ export async function updateHomeView() {
           }
         }
 
-        if (fanStatus) {
-          const fanModeEl = document.getElementById('home-fan-mode');
-          if (fanModeEl) {
-            fanModeEl.textContent = fanStatus;
+        const fanModeEl = document.getElementById('home-fan-mode');
+        if (fanModeEl) {
+          if (fanLevel) {
+            const lvl = fanLevel.toLowerCase();
+            if (lvl === 'auto') {
+              fanModeEl.textContent = 'Auto';
+            } else if (lvl === 'full-speed' || lvl === 'disengaged') {
+              fanModeEl.textContent = 'Max';
+            } else if (!isNaN(parseInt(lvl, 10))) {
+              fanModeEl.textContent = `Level ${lvl}`;
+            } else {
+              fanModeEl.textContent = fanLevel;
+            }
+          } else if (response.data.fans.status) {
+            fanModeEl.textContent = response.data.fans.status;
           }
         }
       }

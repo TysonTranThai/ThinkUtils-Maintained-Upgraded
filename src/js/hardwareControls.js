@@ -62,6 +62,19 @@ async function runAction({ pending, success, invokeName, args, refresh, busy = [
 
     if (response.success) {
       showStatus(success, 'success');
+      if (invokeName === 'set_power_profile' && args?.profile) {
+        import('./settingsManager.js')
+          .then((m) => m.updateSetting('power_profile', args.profile))
+          .catch(() => {});
+      } else if (invokeName === 'set_cpu_governor' && args?.governor) {
+        import('./settingsManager.js')
+          .then((m) => m.updateSetting('cpu_governor', args.governor))
+          .catch(() => {});
+      } else if (invokeName === 'set_turbo_boost' && args?.enabled !== undefined) {
+        import('./settingsManager.js')
+          .then((m) => m.updateSetting('turbo_boost_enabled', args.enabled))
+          .catch(() => {});
+      }
       return true;
     }
 

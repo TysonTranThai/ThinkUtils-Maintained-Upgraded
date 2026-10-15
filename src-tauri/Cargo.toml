@@ -29,9 +29,7 @@ regex = "1"
 reqwest = { version = "0.12", features = ["json", "blocking"] }
 chrono = { version = "0.4", features = ["serde"] }
 base64 = "0.21"
-oauth2 = "5"
 url = "2.5"
-tiny_http = "0.12"
 rand = "0.8"
 lazy_static = "1.4"
 # rmcp 2.x. The SSE server transport was removed upstream; Streamable HTTP is

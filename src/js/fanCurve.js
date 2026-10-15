@@ -353,6 +353,12 @@ async function resetCurve() {
   // Save the reset curve to backend
   try {
     await invoke('set_fan_curve', { points: curvePoints });
+    try {
+      const { updateSetting } = await import('./settingsManager.js');
+      await updateSetting('fan_curve_points', curvePoints);
+    } catch {
+      // Ignore
+    }
     localStorage.setItem('fanCurve', JSON.stringify(curvePoints));
   } catch (error) {
     console.error('[Fan Curve] Failed to save reset curve:', error);
@@ -365,6 +371,14 @@ async function saveCurve() {
   try {
     // Save to backend (which persists to disk)
     await invoke('set_fan_curve', { points: curvePoints });
+
+    // Also update settings store
+    try {
+      const { updateSetting } = await import('./settingsManager.js');
+      await updateSetting('fan_curve_points', curvePoints);
+    } catch (err) {
+      console.error('[Fan Curve] Failed to update fan_curve_points in settings:', err);
+    }
 
     // Also save to localStorage as backup
     localStorage.setItem('fanCurve', JSON.stringify(curvePoints));

@@ -32,13 +32,36 @@ impl Default for FanCurveConfig {
     }
 }
 
-pub type FanCurveState = Arc<Mutex<FanCurveConfig>>;
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum FanTargetMode {
+    Auto,
+    FullSpeed,
+    Manual(String),
+    Curve,
+}
+
+#[derive(Debug, Clone)]
+pub struct FanSupervisorState {
+    pub mode: FanTargetMode,
+    pub curve_config: FanCurveConfig,
+}
+
+impl Default for FanSupervisorState {
+    fn default() -> Self {
+        Self {
+            mode: FanTargetMode::Auto,
+            curve_config: FanCurveConfig::default(),
+        }
+    }
+}
+
+pub type FanCurveState = Arc<Mutex<FanSupervisorState>>;
 
 const STORE_FILE: &str = "settings.json";
 const CURVE_KEY: &str = "fan_curve";
 
 /// Save fan curve config to persistent storage
-fn save_config_to_store(app: &AppHandle, config: &FanCurveConfig) -> Result<(), String> {
+pub fn save_config_to_store(app: &AppHandle, config: &FanCurveConfig) -> Result<(), String> {
     let store = app
         .store(STORE_FILE)
         .map_err(|e| format!("Failed to get store: {}", e))?;
@@ -86,13 +109,13 @@ pub async fn set_fan_curve(
     state: tauri::State<'_, FanCurveState>,
     points: Vec<CurvePoint>,
 ) -> Result<(), String> {
-    let mut config = state
+    let mut s = state
         .lock()
         .map_err(|e| format!("Failed to lock state: {}", e))?;
-    config.points = points.clone();
+    s.curve_config.points = points.clone();
 
     // Save to persistent storage
-    save_config_to_store(&app, &config)?;
+    save_config_to_store(&app, &s.curve_config)?;
 
     Ok(())
 }
@@ -101,10 +124,10 @@ pub async fn set_fan_curve(
 pub async fn get_fan_curve(
     state: tauri::State<'_, FanCurveState>,
 ) -> Result<FanCurveConfig, String> {
-    let config = state
+    let s = state
         .lock()
         .map_err(|e| format!("Failed to lock state: {}", e))?;
-    Ok(config.clone())
+    Ok(s.curve_config.clone())
 }
 
 #[tauri::command]
@@ -113,13 +136,18 @@ pub async fn enable_fan_curve(
     state: tauri::State<'_, FanCurveState>,
     enabled: bool,
 ) -> Result<(), String> {
-    let mut config = state
+    let mut s = state
         .lock()
         .map_err(|e| format!("Failed to lock state: {}", e))?;
-    config.enabled = enabled;
+    s.curve_config.enabled = enabled;
+    if enabled {
+        s.mode = FanTargetMode::Curve;
+    } else if s.mode == FanTargetMode::Curve {
+        s.mode = FanTargetMode::Auto;
+    }
 
     // Save to persistent storage
-    save_config_to_store(&app, &config)?;
+    save_config_to_store(&app, &s.curve_config)?;
 
     Ok(())
 }
@@ -232,13 +260,11 @@ use crate::fan_control::FAN_WATCHDOG_SECS;
 /// Hand the fan back to firmware control.
 ///
 /// Called whenever this task stops steering the fan for any reason: curve
-/// disabled, sensors unreadable, or app shutdown. Modelled on fancontrol, which
-/// treats every read failure as a reason to restore rather than to hold the last
-/// value — holding is what leaves a fan stopped under load.
-async fn restore_fan_to_auto() {
-    match write_fan_command("level auto").await {
-        Ok(_) => println!("[Fan Curve] Fan returned to automatic control"),
-        Err(e) => eprintln!("[Fan Curve] FAILED to restore fan to auto: {}", e),
+/// disabled, manual mode released to auto, sensors unreadable, or app shutdown.
+pub async fn restore_fan_to_auto() {
+    match crate::fan_control::write_fan_command("level auto").await {
+        Ok(_) => println!("[Fan Supervisor] Fan returned to automatic control"),
+        Err(e) => eprintln!("[Fan Supervisor] FAILED to restore fan to auto: {}", e),
     }
 }
 
@@ -246,8 +272,8 @@ async fn restore_fan_to_auto() {
 ///
 /// Best-effort: an install whose helper predates watchdog support will reject
 /// the command, and a failure here must not stop the curve from running.
-async fn arm_fan_watchdog() {
-    let _ = write_fan_command(&format!("watchdog {}", FAN_WATCHDOG_SECS)).await;
+pub async fn arm_fan_watchdog() {
+    let _ = crate::fan_control::write_fan_command(&format!("watchdog {}", FAN_WATCHDOG_SECS)).await;
 }
 
 /// Whether the firmware watchdog is due to be re-armed.
@@ -257,8 +283,7 @@ async fn arm_fan_watchdog() {
 /// change looks right, but a curve sitting at a steady temperature issues no fan
 /// commands at all — so the fan silently reverted to automatic control roughly
 /// [`FAN_WATCHDOG_SECS`] after the temperature settled, which is the *common*
-/// case rather than an edge case. `last_level` still matched the target, so
-/// nothing rewrote it and the UI went on reporting the curve as active.
+/// case rather than an edge case.
 ///
 /// Re-armed at half the interval so one slow or skipped tick cannot expire it.
 fn watchdog_due(since_last_arm: Duration) -> bool {
@@ -279,7 +304,7 @@ pub fn restore_fan_to_auto_blocking() {
         .open("/proc/acpi/ibm/fan")
     {
         if file.write_all(b"level auto").is_ok() {
-            println!("[Fan Curve] Fan returned to automatic control on exit");
+            println!("[Fan Supervisor] Fan returned to automatic control on exit");
             return;
         }
     }
@@ -291,16 +316,14 @@ pub fn restore_fan_to_auto_blocking() {
             .output()
         {
             Ok(o) if o.status.success() => {
-                println!("[Fan Curve] Fan returned to automatic control on exit");
+                println!("[Fan Supervisor] Fan returned to automatic control on exit");
             }
-            _ => eprintln!("[Fan Curve] Could not restore fan to auto on exit"),
+            _ => eprintln!("[Fan Supervisor] Could not restore fan to auto on exit"),
         }
     }
 }
 
 /// Set fan speed with pkexec fallback using the dedicated helper script.
-/// Only attempts pkexec if the helper and polkit rule are both installed
-/// (guaranteeing passwordless operation for the background task).
 async fn set_fan_speed_internal(level: i32) -> Result<(), String> {
     let command = if (0..=7).contains(&level) {
         format!("level {}", level)
@@ -308,48 +331,17 @@ async fn set_fan_speed_internal(level: i32) -> Result<(), String> {
         return Err("Invalid fan level".to_string());
     };
 
-    write_fan_command(&command).await
+    crate::fan_control::write_fan_command(&command).await
 }
 
-/// Write a single command to /proc/acpi/ibm/fan, elevating via the helper when
-/// a direct write is not permitted.
-async fn write_fan_command(command: &str) -> Result<(), String> {
-    use std::fs;
-    use std::io::Write;
-
-    let fan_level_path = "/proc/acpi/ibm/fan";
-
-    // Try direct write first
-    if let Ok(mut file) = fs::OpenOptions::new().write(true).open(fan_level_path) {
-        if file.write_all(command.as_bytes()).is_ok() {
-            return Ok(());
-        }
-    }
-
-    // Use dedicated helper if installed (polkit rule grants passwordless access).
-    // We only check the helper because /etc/polkit-1/rules.d/ is root-only.
-    let Some(helper) = crate::fan_control::helper_path() else {
-        return Err("No write permission. Grant permissions to enable fan curve mode.".to_string());
-    };
-
-    let output = tokio::process::Command::new("pkexec")
-        .arg(helper)
-        .arg(command)
-        .output()
-        .await
-        .map_err(|e| format!("Failed to execute helper: {}", e))?;
-
-    if output.status.success() {
-        Ok(())
-    } else {
-        Err("Failed to set fan speed via helper".to_string())
-    }
-}
-
-/// Background task that monitors temperature and adjusts fan speed
+/// Background task that monitors temperature and supervises fan speed across all modes.
+///
+/// Ensures that when the user sets Full Speed or a Manual level, the app keeps the
+/// firmware watchdog alive and continuously protects the setting against unintended
+/// EC or kernel resets back to auto while the app is running.
 pub async fn fan_curve_background_task(app: AppHandle) {
     let state = app.state::<FanCurveState>();
-    let mut last_level: Option<i32> = None;
+    let mut last_applied_speed: Option<String> = None;
     let mut last_armed: Option<Instant> = None;
     let mut error_count = 0;
     let mut permission_error_reported = false;
@@ -359,118 +351,173 @@ pub async fn fan_curve_background_task(app: AppHandle) {
         // Sleep for 2 seconds between checks
         sleep(Duration::from_secs(2)).await;
 
-        // Check if curve mode is enabled
-        let config = match state.lock() {
-            Ok(cfg) => cfg.clone(),
+        let (mode, curve_points) = match state.lock() {
+            Ok(s) => (s.mode.clone(), s.curve_config.points.clone()),
             Err(e) => {
-                eprintln!("[Fan Curve] Failed to lock state: {}", e);
+                eprintln!("[Fan Supervisor] Failed to lock state: {}", e);
                 continue;
             }
         };
 
-        if !config.enabled {
-            // Hand the fan back rather than leaving it wherever the curve last
-            // put it. Turning the curve off used to strand the fan at its last
-            // manual level indefinitely.
-            if last_level.is_some() {
-                restore_fan_to_auto().await;
-            }
-            last_level = None;
-            last_armed = None;
-            permission_error_reported = false;
-            continue;
-        }
-
-        // Get current CPU temperature
-        let temp = match get_cpu_temperature() {
-            Ok(t) => t,
-            Err(e) => {
-                error_count += 1;
-                if error_count <= MAX_ERRORS {
-                    eprintln!("[Fan Curve] Failed to read temperature: {}", e);
-                }
-
-                // Blind and still steering the fan is the dangerous state: if the
-                // curve is holding a low level and load rises, nothing will raise
-                // it. Give the fan back to the firmware, which can still see the
-                // sensors we cannot.
-                if last_level.is_some() {
-                    eprintln!("[Fan Curve] Temperature unreadable — returning fan to auto");
+        match mode {
+            FanTargetMode::Auto => {
+                // Hand the fan back to firmware if we were previously controlling it
+                if last_applied_speed.is_some() {
                     restore_fan_to_auto().await;
-                    last_level = None;
+                    last_applied_speed = None;
                     last_armed = None;
-                    let _ = app.emit_to(
-                        "main",
-                        "fan-curve-error",
-                        serde_json::json!({
-                            "error": "Temperature sensors unreadable. Fan returned to automatic control.",
-                        }),
-                    );
-                }
-                continue;
-            }
-        };
-
-        error_count = 0; // Reset error count on success
-
-        // Calculate target fan level
-        let target_level = calculate_fan_level(temp, &config.points);
-
-        // Only write to fan hardware when level actually changes
-        if last_level != Some(target_level) {
-            match set_fan_speed_internal(target_level).await {
-                Ok(_) => {
-                    println!(
-                        "[Fan Curve] Temp: {}°C -> Fan Level: {}",
-                        temp, target_level
-                    );
-                    last_level = Some(target_level);
                     permission_error_reported = false;
+                }
+            }
+            FanTargetMode::FullSpeed => {
+                // 1. Keep the watchdog alive every ~15s (half of FAN_WATCHDOG_SECS = 30)
+                if last_armed.is_none_or(|t| watchdog_due(t.elapsed())) {
                     arm_fan_watchdog().await;
                     last_armed = Some(Instant::now());
                 }
-                Err(e) => {
-                    eprintln!("[Fan Curve] Failed to set fan speed: {}", e);
 
-                    // Notify frontend once about permission issues
-                    if !permission_error_reported {
-                        permission_error_reported = true;
-                        let _ = app.emit_to(
-                            "main",
-                            "fan-curve-error",
-                            serde_json::json!({
-                                "error": e,
-                            }),
-                        );
+                // 2. Read hardware level: if hardware reverted to auto, re-assert full-speed
+                let hw_level = crate::fan_control::read_fan_level();
+                let need_reapply = match &hw_level {
+                    Some(lvl) => lvl != "full-speed" && lvl != "disengaged",
+                    None => last_applied_speed.as_deref() != Some("full-speed"),
+                };
+
+                if need_reapply {
+                    println!(
+                        "[Fan Supervisor] Full speed active but hw level is {:?}; re-asserting full-speed",
+                        hw_level
+                    );
+                    if crate::fan_control::write_fan_command("level full-speed").await.is_ok() {
+                        arm_fan_watchdog().await;
+                        last_armed = Some(Instant::now());
+                        last_applied_speed = Some("full-speed".to_string());
                     }
+                } else {
+                    last_applied_speed = Some("full-speed".to_string());
                 }
             }
-        } else if last_level.is_some() && last_armed.is_none_or(|t| watchdog_due(t.elapsed())) {
-            // Holding a level still counts as steering the fan, so the watchdog
-            // has to be kept alive even though nothing is being changed.
-            arm_fan_watchdog().await;
-            last_armed = Some(Instant::now());
-        }
+            FanTargetMode::Manual(target_speed) => {
+                // 1. Keep the watchdog alive every ~15s
+                if last_armed.is_none_or(|t| watchdog_due(t.elapsed())) {
+                    arm_fan_watchdog().await;
+                    last_armed = Some(Instant::now());
+                }
 
-        // Always emit temperature and current level to frontend for live UI updates.
-        //
-        // `controlling` says whether that level was actually applied. When every
-        // write is failing — no helper installed, /proc not writable — last_level
-        // stays None and this reported the level it *wanted*, indistinguishable
-        // from one it had set. The fan-curve-error toast fires once and is easy
-        // to miss or dismiss, after which the display looked correct forever.
-        let controlling = last_level.is_some();
-        let display_level = last_level.unwrap_or(target_level);
-        if let Err(e) = app.emit_to(
-            "main",
-            "fan-curve-update",
-            serde_json::json!({
-                "temperature": temp,
-                "fan_level": display_level,
-                "controlling": controlling,
-            }),
-        ) {
-            eprintln!("[Fan Curve] Failed to emit event: {}", e);
+                // 2. Read hardware level: if hardware reverted to auto or changed away, re-assert
+                let hw_level = crate::fan_control::read_fan_level();
+                let need_reapply = match &hw_level {
+                    Some(lvl) => lvl != &target_speed,
+                    None => last_applied_speed.as_deref() != Some(&target_speed),
+                };
+
+                if need_reapply {
+                    println!(
+                        "[Fan Supervisor] Manual speed {} active but hw level is {:?}; re-asserting",
+                        target_speed, hw_level
+                    );
+                    let cmd = format!("level {}", target_speed);
+                    if crate::fan_control::write_fan_command(&cmd).await.is_ok() {
+                        arm_fan_watchdog().await;
+                        last_armed = Some(Instant::now());
+                        last_applied_speed = Some(target_speed);
+                    }
+                } else {
+                    last_applied_speed = Some(target_speed);
+                }
+            }
+            FanTargetMode::Curve => {
+                // Get current CPU temperature
+                let temp = match get_cpu_temperature() {
+                    Ok(t) => t,
+                    Err(e) => {
+                        error_count += 1;
+                        if error_count <= MAX_ERRORS {
+                            eprintln!("[Fan Curve] Failed to read temperature: {}", e);
+                        }
+
+                        // Blind and still steering the fan is dangerous: if the curve
+                        // is holding a low level and load rises, nothing will raise it.
+                        // Give the fan back to the firmware, which can still see sensors.
+                        if last_applied_speed.is_some() {
+                            eprintln!("[Fan Curve] Temperature unreadable — returning fan to auto");
+                            restore_fan_to_auto().await;
+                            last_applied_speed = None;
+                            last_armed = None;
+                            let _ = app.emit_to(
+                                "main",
+                                "fan-curve-error",
+                                serde_json::json!({
+                                    "error": "Temperature sensors unreadable. Fan returned to automatic control.",
+                                }),
+                            );
+                        }
+                        continue;
+                    }
+                };
+
+                error_count = 0; // Reset error count on success
+
+                // Calculate target fan level
+                let target_level = calculate_fan_level(temp, &curve_points);
+                let target_level_str = target_level.to_string();
+
+                // Only write to fan hardware when level actually changes
+                if last_applied_speed.as_deref() != Some(&target_level_str) {
+                    match set_fan_speed_internal(target_level).await {
+                        Ok(_) => {
+                            println!(
+                                "[Fan Curve] Temp: {}°C -> Fan Level: {}",
+                                temp, target_level
+                            );
+                            last_applied_speed = Some(target_level_str);
+                            permission_error_reported = false;
+                            arm_fan_watchdog().await;
+                            last_armed = Some(Instant::now());
+                        }
+                        Err(e) => {
+                            eprintln!("[Fan Curve] Failed to set fan speed: {}", e);
+
+                            // Notify frontend once about permission issues
+                            if !permission_error_reported {
+                                permission_error_reported = true;
+                                let _ = app.emit_to(
+                                    "main",
+                                    "fan-curve-error",
+                                    serde_json::json!({
+                                        "error": e,
+                                    }),
+                                );
+                            }
+                        }
+                    }
+                } else if last_applied_speed.is_some()
+                    && last_armed.is_none_or(|t| watchdog_due(t.elapsed()))
+                {
+                    // Holding a level still counts as steering the fan, so the watchdog
+                    // has to be kept alive even though nothing is being changed.
+                    arm_fan_watchdog().await;
+                    last_armed = Some(Instant::now());
+                }
+
+                // Always emit temperature and current level to frontend for live UI updates.
+                let controlling = last_applied_speed.is_some();
+                let display_level = last_applied_speed
+                    .as_deref()
+                    .and_then(|s| s.parse::<i32>().ok())
+                    .unwrap_or(target_level);
+                if let Err(e) = app.emit_to(
+                    "main",
+                    "fan-curve-update",
+                    serde_json::json!({
+                        "temperature": temp,
+                        "fan_level": display_level,
+                        "controlling": controlling,
+                    }),
+                ) {
+                    eprintln!("[Fan Curve] Failed to emit event: {}", e);
+                }
+            }
         }
     }
 }
@@ -574,5 +621,28 @@ mod tests {
 
         // Above last point
         assert_eq!(calculate_fan_level(85, &points), 7);
+    }
+
+    #[test]
+    fn supervisor_state_initializes_properly() {
+        let state = FanSupervisorState::default();
+        assert_eq!(state.mode, FanTargetMode::Auto);
+        assert!(!state.curve_config.enabled);
+        assert_eq!(state.curve_config.points.len(), 5);
+    }
+
+    #[test]
+    fn mode_transitions_and_equality() {
+        assert_eq!(FanTargetMode::Auto, FanTargetMode::Auto);
+        assert_eq!(FanTargetMode::FullSpeed, FanTargetMode::FullSpeed);
+        assert_eq!(
+            FanTargetMode::Manual("7".to_string()),
+            FanTargetMode::Manual("7".to_string())
+        );
+        assert_ne!(
+            FanTargetMode::Manual("7".to_string()),
+            FanTargetMode::Manual("5".to_string())
+        );
+        assert_ne!(FanTargetMode::FullSpeed, FanTargetMode::Auto);
     }
 }

@@ -124,13 +124,12 @@ Built-in MCP (Model Context Protocol) server that exposes system controls to AI 
 - **AI-Powered Control**: Let AI assistants monitor and adjust your ThinkPad settings
 - **MCP Protocol**: Standard protocol supported by Claude Code, Claude Desktop, and other AI tools
 
-### 🔄 Google Drive Sync
-Never lose your carefully tuned settings. Sync your ThinkUtils configuration to the cloud and restore it on any ThinkPad.
+### ⚙️ Settings Management (Import & Export)
+Never lose your carefully tuned settings. Export your ThinkUtils configuration to a local JSON file and restore it anytime.
 
-- **Settings Backup**: Sync your fan mode, battery thresholds, and application preferences to Google Drive
-- **Cross-Device**: Switch between multiple ThinkPads? Keep your settings consistent across all your machines
-- **OAuth Integration**: Secure authentication using Google's OAuth—your credentials never touch ThinkUtils servers
-- **Note**: Requires Google OAuth credentials to be configured (see [docs/development/google-oauth.md](docs/development/google-oauth.md))
+- **Settings Backup**: Export your fan curves, battery thresholds, power profiles, and application preferences to JSON
+- **Easy Migration**: Moving to another ThinkPad? Simply export your configuration and import it on your new machine
+- **Reset to Defaults**: Quickly restore factory defaults with a single click
 
 ## How it Works
 

@@ -19,7 +19,7 @@ src/js/
     ├── battery.js      # Battery management view
     ├── performance.js  # Performance tuning view
     ├── monitor.js      # System monitor view
-    ├── sync.js         # Cloud sync view
+    ├── settings.js     # Settings and backup (import/export) view
     └── system.js       # System information view
 ```
 

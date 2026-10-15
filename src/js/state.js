@@ -6,7 +6,8 @@ export const state = {
   lastFanSpeedSet: null,
   currentView: 'home',
   monitorInterval: null,
-  homeInterval: null
+  homeInterval: null,
+  batteryInterval: null
 };
 
 export function setState(key, value) {

@@ -97,8 +97,22 @@ fn read_battery_info(path: &str, index: usize) -> Result<BatteryInfo, String> {
     };
 
     let voltage = read_f32("voltage_now");
-    let current = read_f32("current_now");
-    let power = voltage * current;
+
+    // Read power_now directly (µW -> W) if available, or compute from voltage * current
+    let power = if let Ok(p_str) = read_file("power_now") {
+        p_str.parse::<f32>().map(|v| v / 1_000_000.0).unwrap_or(0.0)
+    } else {
+        let current = read_f32("current_now");
+        voltage * current
+    };
+
+    let current = if let Ok(c_str) = read_file("current_now") {
+        c_str.parse::<f32>().map(|v| v / 1_000_000.0).unwrap_or(0.0)
+    } else if voltage > 0.0 {
+        power / voltage
+    } else {
+        0.0
+    };
 
     Ok(BatteryInfo {
         name: format!("BAT{}", index),
@@ -286,19 +300,90 @@ pub async fn set_battery_thresholds(start: u8, stop: u8) -> ApiResponse<String> 
     }
 }
 
-#[tauri::command]
-pub fn get_power_consumption() -> ApiResponse<f32> {
-    let power_path = format!("{}/power_now", BAT0_PATH);
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PowerConsumptionData {
+    pub power_w: f32,
+    pub is_charging: bool,
+    pub is_ac_online: bool,
+    pub status: String,
+    pub capacity: u8,
+    pub runtime_hours: Option<f32>,
+    pub time_to_full_hours: Option<f32>,
+}
 
-    let power = fs::read_to_string(&power_path)
-        .ok()
-        .and_then(|s| s.trim().parse::<f32>().ok())
-        .map(|w| w / 1_000_000.0) // Convert µW to W
-        .unwrap_or(0.0);
+#[tauri::command]
+pub fn get_power_consumption() -> ApiResponse<PowerConsumptionData> {
+    let is_ac_online = fs::read_to_string("/sys/class/power_supply/AC/online")
+        .map(|s| s.trim() == "1")
+        .unwrap_or(false);
+
+    let mut power_w: f32 = 0.0;
+    let mut energy_now_wh: f32 = 0.0;
+    let mut energy_full_wh: f32 = 0.0;
+    let mut status = "Unknown".to_string();
+    let mut capacity: u8 = 0;
+
+    for bat_path in [BAT0_PATH, BAT1_PATH] {
+        if Path::new(bat_path).exists() {
+            let read_f32 = |file: &str| -> f32 {
+                fs::read_to_string(format!("{}/{}", bat_path, file))
+                    .ok()
+                    .and_then(|s| s.trim().parse::<f32>().ok())
+                    .map(|v| v / 1_000_000.0)
+                    .unwrap_or(0.0)
+            };
+
+            let p = if let Ok(p_str) = fs::read_to_string(format!("{}/power_now", bat_path)) {
+                p_str.trim().parse::<f32>().map(|v| v / 1_000_000.0).unwrap_or(0.0)
+            } else {
+                let v = read_f32("voltage_now");
+                let c = read_f32("current_now");
+                v * c
+            };
+            power_w += p;
+            energy_now_wh += read_f32("energy_now");
+            energy_full_wh += read_f32("energy_full");
+
+            if let Ok(st) = fs::read_to_string(format!("{}/status", bat_path)) {
+                let st_trimmed = st.trim().to_string();
+                if st_trimmed != "Unknown" && !st_trimmed.is_empty() {
+                    status = st_trimmed;
+                }
+            }
+
+            if let Ok(cap_str) = fs::read_to_string(format!("{}/capacity", bat_path)) {
+                if let Ok(cap) = cap_str.trim().parse::<u8>() {
+                    capacity = cap;
+                }
+            }
+        }
+    }
+
+    let is_charging = status == "Charging";
+
+    let runtime_hours = if !is_charging && !is_ac_online && power_w > 0.05 {
+        Some(energy_now_wh / power_w)
+    } else {
+        None
+    };
+
+    let time_to_full_hours = if is_charging && power_w > 0.05 {
+        Some(((energy_full_wh - energy_now_wh).max(0.0)) / power_w)
+    } else {
+        None
+    };
 
     ApiResponse {
         success: true,
-        data: Some(power),
+        data: Some(PowerConsumptionData {
+            power_w,
+            is_charging,
+            is_ac_online,
+            status,
+            capacity,
+            runtime_hours,
+            time_to_full_hours,
+        }),
         error: None,
     }
 }

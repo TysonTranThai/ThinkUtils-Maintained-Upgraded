@@ -13,7 +13,7 @@ styles/
 ├── battery.css      # Battery management
 ├── performance.css  # CPU/Performance
 ├── monitor.css      # System monitor
-├── sync.css         # Settings sync
+├── settings.css     # Settings and backup (import/export)
 ├── system.css       # System info
 ├── security.css     # Security
 ├── mcp.css          # MCP server

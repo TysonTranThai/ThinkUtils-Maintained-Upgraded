@@ -11,7 +11,6 @@ mod permissions;
 mod privileged;
 mod security;
 mod settings;
-mod sync;
 mod system_info;
 
 use tauri::{
@@ -179,8 +178,16 @@ pub fn run() {
 
             // Load fan curve config from persistent storage
             let saved_config = fan_curve::load_config_from_store(app.handle());
+            let initial_mode = if saved_config.enabled {
+                fan_curve::FanTargetMode::Curve
+            } else {
+                fan_curve::FanTargetMode::Auto
+            };
             let fan_curve_state =
-                fan_curve::FanCurveState::new(std::sync::Mutex::new(saved_config));
+                fan_curve::FanCurveState::new(std::sync::Mutex::new(fan_curve::FanSupervisorState {
+                    mode: initial_mode,
+                    curve_config: saved_config,
+                }));
             app.manage(fan_curve_state);
 
             // Initialize MCP server state (off by default)
@@ -270,10 +277,13 @@ pub fn run() {
             // Permissions
             permissions::check_permissions_status,
             permissions::setup_permissions,
-            // Settings
+            // Settings & Import/Export
             settings::save_app_settings,
             settings::load_app_settings,
             settings::update_setting,
+            settings::export_settings,
+            settings::import_settings,
+            settings::reset_settings,
             // Fan Control
             fan_control::get_sensor_data,
             fan_control::get_fan_capability,
@@ -287,14 +297,6 @@ pub fn run() {
             fan_curve::set_fan_curve,
             fan_curve::get_fan_curve,
             fan_curve::enable_fan_curve,
-            // Sync
-            sync::get_settings,
-            sync::save_settings,
-            sync::google_auth_init,
-            sync::google_auth_status,
-            sync::sync_to_cloud,
-            sync::sync_from_cloud,
-            sync::google_logout,
             // System Info
             system_info::get_system_info,
             // Battery

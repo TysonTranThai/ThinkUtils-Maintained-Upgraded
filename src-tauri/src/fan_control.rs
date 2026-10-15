@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::process::Command;
+use tauri::Manager;
 
 const PROC_FAN: &str = "/proc/acpi/ibm/fan";
 
@@ -378,8 +379,62 @@ pub fn get_sensor_data() -> ApiResponse<SensorData> {
     }
 }
 
+/// Write a single command to /proc/acpi/ibm/fan, elevating via the helper when
+/// a direct write is not permitted.
+pub async fn write_fan_command(command: &str) -> Result<(), String> {
+    if crate::hardware_root::is_simulated() {
+        return Ok(());
+    }
+
+    // 1. Try direct write (no elevation needed)
+    if fs::write(PROC_FAN, command).is_ok() {
+        return Ok(());
+    }
+
+    // 2. Use dedicated helper if installed (passwordless via polkit rule)
+    if let Some(helper) = helper_path() {
+        match tokio::process::Command::new("pkexec")
+            .arg(helper)
+            .arg(command)
+            .output()
+            .await
+        {
+            Ok(output) if output.status.success() => {
+                return Ok(());
+            }
+            Ok(_) => {
+                return Err("Permission denied. Click 'Grant Permissions' to enable passwordless fan control.".to_string());
+            }
+            Err(e) => {
+                return Err(format!("Failed to execute helper: {}", e));
+            }
+        }
+    }
+
+    // 3. Fallback: secure temp script + pkexec (will prompt for password)
+    let script_content = format!(
+        "#!/bin/bash\nset -e\necho '{}' > {}\nexit 0\n",
+        command, PROC_FAN
+    );
+
+    match crate::privileged::run_script(&script_content).await {
+        Ok(output) if output.status.success() => Ok(()),
+        Ok(_) => Err("Permission denied. Click 'Grant Permissions' to avoid repeated password prompts.".to_string()),
+        Err(e) => Err(format!("Failed to execute pkexec: {}", e)),
+    }
+}
+
+/// Read the current fan level from /proc/acpi/ibm/fan, if available.
+pub fn read_fan_level() -> Option<String> {
+    let content = crate::hardware_root::read_to_string(PROC_FAN).ok()?;
+    parse_fan_proc(&content).remove("level")
+}
+
 #[tauri::command]
-pub async fn set_fan_speed(speed: String) -> ApiResponse<String> {
+pub async fn set_fan_speed(
+    app: tauri::AppHandle,
+    speed: String,
+) -> ApiResponse<String> {
     // Validate speed against whitelist
     if !is_valid_speed(&speed) {
         return ApiResponse {
@@ -420,79 +475,39 @@ pub async fn set_fan_speed(speed: String) -> ApiResponse<String> {
         }
     }
 
-    // 1. Try direct write (no elevation needed)
-    if fs::write(PROC_FAN, &command_str).is_ok() {
-        println!("[Fan] ✓ Speed set successfully");
-        return ApiResponse {
-            success: true,
-            data: Some(format!("Fan speed set to: {}", speed)),
-            error: None,
-        };
+    // Update target mode in supervisor so background task maintains it and keeps watchdog alive
+    let target_mode = match speed.as_str() {
+        "auto" => crate::fan_curve::FanTargetMode::Auto,
+        "full-speed" => crate::fan_curve::FanTargetMode::FullSpeed,
+        s => crate::fan_curve::FanTargetMode::Manual(s.to_string()),
+    };
+
+    let state = app.state::<crate::fan_curve::FanCurveState>();
+    if let Ok(mut s) = state.lock() {
+        s.mode = target_mode;
+        s.curve_config.enabled = false;
     }
 
-    println!("[Fan] Need elevated permissions");
-
-    // 2. Use dedicated helper if installed (passwordless via polkit rule)
-    if let Some(helper) = helper_path() {
-        match tokio::process::Command::new("pkexec")
-            .arg(helper)
-            .arg(&command_str)
-            .output()
-            .await
-        {
-            Ok(output) if output.status.success() => {
-                println!("[Fan] ✓ Speed set via helper");
-                return ApiResponse {
-                    success: true,
-                    data: Some(format!("Fan speed set to: {}", speed)),
-                    error: None,
-                };
+    match write_fan_command(&command_str).await {
+        Ok(_) => {
+            println!("[Fan] ✓ Speed set successfully to: {}", speed);
+            if speed != "auto" {
+                crate::fan_curve::arm_fan_watchdog().await;
             }
-            Ok(_) => {
-                return ApiResponse {
-                    success: false,
-                    data: None,
-                    error: Some("Permission denied. Click 'Grant Permissions' to enable passwordless fan control.".to_string()),
-                };
-            }
-            Err(e) => {
-                return ApiResponse {
-                    success: false,
-                    data: None,
-                    error: Some(format!("Failed to execute helper: {}", e)),
-                };
+            ApiResponse {
+                success: true,
+                data: Some(format!("Fan speed set to: {}", speed)),
+                error: None,
             }
         }
-    }
-
-    // 3. Fallback: secure temp script + pkexec (will prompt for password)
-    let script_content = format!(
-        "#!/bin/bash\nset -e\necho '{}' > {}\nexit 0\n",
-        command_str, PROC_FAN
-    );
-
-    match crate::privileged::run_script(&script_content).await {
-        Ok(output) => {
-            if output.status.success() {
-                println!("[Fan] ✓ Speed set via pkexec");
-                ApiResponse {
-                    success: true,
-                    data: Some(format!("Fan speed set to: {}", speed)),
-                    error: None,
-                }
-            } else {
-                ApiResponse {
-                    success: false,
-                    data: None,
-                    error: Some("Permission denied. Click 'Grant Permissions' to avoid repeated password prompts.".to_string()),
-                }
+        Err(e) => {
+            println!("[Fan] Failed to set fan speed: {}", e);
+            ApiResponse {
+                success: false,
+                data: None,
+                error: Some(e),
             }
         }
-        Err(e) => ApiResponse {
-            success: false,
-            data: None,
-            error: Some(format!("Failed to execute pkexec: {}", e)),
-        },
     }
 }
 

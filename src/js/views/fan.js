@@ -136,6 +136,16 @@ function updateUIFromFanLevel(level) {
     }
   }
 
+  // If the user has intentionally selected 'full' or 'manual' mode in the UI,
+  // do NOT allow a transient hardware reading of 'auto' to revert the user's selected mode!
+  // The backend supervisor ensures the requested mode is maintained against firmware resets.
+  if (currentMode === 'full' && (levelStr === 'auto' || levelStr === '')) {
+    return;
+  }
+  if (currentMode === 'manual' && (levelStr === 'auto' || levelStr === '')) {
+    return;
+  }
+
   [elements.btnAuto, elements.btnManual, elements.btnCurve, elements.btnFull].forEach((btn) => {
     btn.classList.remove('active');
   });
@@ -152,9 +162,9 @@ function updateUIFromFanLevel(level) {
     elements.currentMode.textContent = 'MAX';
     elements.sliderSection.style.display = 'none';
     elements.curveSection.style.display = 'none';
-  } else if (!isNaN(parseInt(levelStr))) {
+  } else if (!isNaN(parseInt(levelStr, 10))) {
     setState('currentFanMode', 'manual');
-    const numLevel = parseInt(levelStr);
+    const numLevel = parseInt(levelStr, 10);
     elements.slider.value = numLevel;
     elements.sliderValue.textContent = numLevel;
     elements.btnManual.classList.add('active');
@@ -187,7 +197,7 @@ async function setFanMode(mode, level = null) {
 
   switch (mode) {
     case 'auto': {
-      stopCurveMode();
+      await stopCurveMode();
       elements.btnAuto.classList.add('active');
       elements.currentMode.textContent = 'AUTO';
       elements.sliderSection.style.display = 'none';
@@ -203,7 +213,7 @@ async function setFanMode(mode, level = null) {
     }
 
     case 'manual': {
-      stopCurveMode();
+      await stopCurveMode();
       elements.btnManual.classList.add('active');
       speedValue = level || elements.slider.value;
       elements.currentMode.textContent = `LEVEL ${speedValue}`;
@@ -214,7 +224,7 @@ async function setFanMode(mode, level = null) {
       // Save to settings
       const { updateSetting: updateSettingManual } = await import('../settingsManager.js');
       await updateSettingManual('fan_mode', 'manual');
-      await updateSettingManual('fan_level', parseInt(speedValue));
+      await updateSettingManual('fan_level', parseInt(speedValue, 10));
       await updateSettingManual('fan_curve_enabled', false);
       break;
     }
@@ -242,7 +252,7 @@ async function setFanMode(mode, level = null) {
     }
 
     case 'full': {
-      stopCurveMode();
+      await stopCurveMode();
       elements.btnFull.classList.add('active');
       elements.currentMode.textContent = 'MAX';
       elements.sliderSection.style.display = 'none';

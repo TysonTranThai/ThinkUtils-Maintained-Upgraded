@@ -84,13 +84,27 @@ export async function applyFanSettings(settings) {
 
 /**
  * Apply battery settings — reads actual thresholds from hardware
- * rather than relying on cached settings, since external tools
- * (e.g. MCP server) may have changed thresholds.
+ * or writes imported thresholds if provided.
  */
-export async function applyBatterySettings() {
+export async function applyBatterySettings(settings = null) {
   const elements = (await import('./dom.js')).elements;
 
   try {
+    if (
+      settings &&
+      typeof settings.battery_start_threshold === 'number' &&
+      typeof settings.battery_stop_threshold === 'number'
+    ) {
+      try {
+        await invoke('set_battery_thresholds', {
+          start: settings.battery_start_threshold,
+          stop: settings.battery_stop_threshold
+        });
+      } catch (err) {
+        console.warn('[Settings] Failed to write battery thresholds to hardware:', err);
+      }
+    }
+
     const response = await invoke('get_battery_thresholds');
     if (response.success && response.data) {
       if (elements.thresholdStart) {
@@ -145,8 +159,10 @@ export async function applyPerformanceSettings(settings) {
 
 /**
  * Apply all settings to the system
+ * @param {Object} settings - Settings object
+ * @param {boolean} applyHardware - Whether to write hardware configurations (e.g. on import/reset)
  */
-export async function applyAllSettings(settings) {
+export async function applyAllSettings(settings, applyHardware = false) {
   if (!settings) {
     console.warn('[Settings] No settings to apply');
     return;
@@ -154,12 +170,25 @@ export async function applyAllSettings(settings) {
 
   console.log('[Settings] Applying all settings...');
 
-  // Only apply UI-level and fan settings on startup.
-  // Performance settings (CPU governor, turbo boost, power profile) are NOT
-  // auto-applied because they use pkexec which would prompt for a password
-  // every time the app starts. Users apply these explicitly from the UI.
-  await applyBatterySettings();
-  await applyFanSettings(settings);
+  if (applyHardware) {
+    // When importing or resetting settings, apply directly to hardware
+    await applyBatterySettings(settings);
+    await applyFanSettings(settings);
+
+    if (Array.isArray(settings.fan_curve_points) && settings.fan_curve_points.length > 0) {
+      try {
+        await invoke('set_fan_curve', { points: settings.fan_curve_points });
+      } catch (err) {
+        console.warn('[Settings] Failed to apply imported fan curve:', err);
+      }
+    }
+
+    await applyPerformanceSettings(settings);
+  } else {
+    // Startup: read hardware state for battery and apply fan settings
+    await applyBatterySettings();
+    await applyFanSettings(settings);
+  }
 
   console.log('[Settings] All settings applied');
 }

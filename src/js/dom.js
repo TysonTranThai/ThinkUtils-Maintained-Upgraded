@@ -29,7 +29,7 @@ export function initializeElements() {
   // Views
   elements.homeView = document.getElementById('home-view');
   elements.fanView = document.getElementById('fan-view');
-  elements.syncView = document.getElementById('sync-view');
+  elements.settingsView = document.getElementById('settings-view');
   elements.systemView = document.getElementById('system-view');
   elements.batteryView = document.getElementById('battery-view');
   elements.performanceView = document.getElementById('performance-view');
@@ -37,13 +37,11 @@ export function initializeElements() {
   elements.securityView = document.getElementById('security-view');
   elements.mcpView = document.getElementById('mcp-view');
 
-  // Sync
-  elements.btnGoogleLogin = document.getElementById('btn-google-login');
-  elements.btnGoogleLogout = document.getElementById('btn-google-logout');
-  elements.btnSyncNow = document.getElementById('btn-sync-now');
-  elements.btnDownloadSettings = document.getElementById('btn-download-settings');
-  elements.syncLogin = document.getElementById('sync-login');
-  elements.syncDashboard = document.getElementById('sync-dashboard');
+  // Settings
+  elements.btnExportSettings = document.getElementById('btn-export-settings');
+  elements.btnImportSettings = document.getElementById('btn-import-settings');
+  elements.btnResetSettings = document.getElementById('btn-reset-settings');
+  elements.inputImportSettings = document.getElementById('input-import-settings');
 
   // Battery
   elements.thresholdStart = document.getElementById('threshold-start');

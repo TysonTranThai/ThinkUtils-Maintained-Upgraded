@@ -29,7 +29,7 @@ import { setupTitlebar } from './titlebar.js';
 import { setupFeatureNavigation } from './navigation.js';
 import { setupFanControl, checkInitialPermissions } from './views/fan.js';
 import { setupHomeActions, updateHomeView } from './views/home.js';
-import { setupSyncHandlers } from './views/sync.js';
+import { setupSettingsHandlers } from './views/settings.js';
 import { setupBatteryHandlers } from './views/battery.js';
 import { setupSecurityHandlers } from './views/security.js';
 import { setupAboutDialog } from './about.js';
@@ -165,7 +165,7 @@ async function initializeApp() {
   step('navigation', setupFeatureNavigation);
   step('fan', setupFanControl);
   step('home', setupHomeActions);
-  step('sync', setupSyncHandlers);
+  step('settings', setupSettingsHandlers);
   step('battery', setupBatteryHandlers);
   step('security', setupSecurityHandlers);
   step('about', setupAboutDialog);
@@ -226,7 +226,7 @@ window.addEventListener('DOMContentLoaded', initializeApp);
 // Clear every tracked timer. The previous version listed two of the three and
 // read as though it were complete.
 window.addEventListener('beforeunload', () => {
-  for (const key of ['updateInterval', 'monitorInterval', 'homeInterval']) {
+  for (const key of ['updateInterval', 'monitorInterval', 'homeInterval', 'batteryInterval']) {
     if (state[key]) {
       clearInterval(state[key]);
       setState(key, null);

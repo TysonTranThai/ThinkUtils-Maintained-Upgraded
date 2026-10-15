@@ -12,10 +12,6 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 /// Default port for the MCP server.
-///
-/// Deliberately not 8765: that is sync.rs's OAuth callback port, and while the
-/// MCP server held it the callback listener could not bind, so Google login
-/// failed with no visible error. A test asserts the two stay different.
 pub const DEFAULT_MCP_PORT: u16 = 8779;
 
 const VALID_FAN_SPEEDS: &[&str] = &["auto", "full-speed", "0", "1", "2", "3", "4", "5", "6", "7"];
@@ -726,18 +722,6 @@ mod tests {
 
     // -- McpServerState defaults --
 
-    /// The MCP server and the OAuth callback listener cannot both bind the same
-    /// port, and the failure is silent: with MCP running, the callback server
-    /// fails to bind and Google login simply never completes. They used to share
-    /// 8765.
-    #[test]
-    fn mcp_port_does_not_collide_with_the_oauth_callback() {
-        assert_ne!(
-            DEFAULT_MCP_PORT,
-            crate::sync::OAUTH_CALLBACK_PORT,
-            "MCP and the OAuth callback would fight over the same port"
-        );
-    }
 
     #[test]
     fn default_state() {

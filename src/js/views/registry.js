@@ -12,9 +12,9 @@
 
 import { elements } from '../dom.js';
 import { updateHomeView } from './home.js';
-import { checkSyncStatus } from './sync.js';
+import { loadSettingsView } from './settings.js';
 import { loadSystemInfo } from './system.js';
-import { loadBatteryInfo } from './battery.js';
+import { startBatteryUpdate, stopBatteryUpdate } from './battery.js';
 import { loadPerformanceInfo } from './performance.js';
 import { startMonitoring, stopMonitoring } from './monitor.js';
 import { loadSecurityStatus } from './security.js';
@@ -59,7 +59,8 @@ export const VIEWS = [
     subtitle: 'Monitor and optimize battery health',
     element: 'batteryView',
     display: 'block',
-    onShow: loadBatteryInfo
+    onShow: startBatteryUpdate,
+    onHide: stopBatteryUpdate
   },
   {
     id: 'performance',
@@ -106,12 +107,12 @@ export const VIEWS = [
     }
   },
   {
-    id: 'sync',
-    title: 'Cloud Sync',
-    subtitle: 'Sync settings across devices',
-    element: 'syncView',
+    id: 'settings',
+    title: 'Settings',
+    subtitle: 'Import, export, and configure ThinkUtils',
+    element: 'settingsView',
     display: 'block',
-    onShow: checkSyncStatus
+    onShow: loadSettingsView
   }
 ];
 

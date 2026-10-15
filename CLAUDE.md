@@ -55,9 +55,8 @@ Key modules:
 - **battery.rs** — Reads `/sys/class/power_supply/BAT0|BAT1/`
 - **performance.rs** — CPU governor, turbo boost, power profiles via sysfs
 - **monitor.rs** — System stats (CPU, memory, disk, network, processes)
-- **sync.rs** — Google OAuth2 + Drive-based settings backup/restore
 - **security.rs** — ClamAV integration
-- **settings.rs** — Persistent storage via tauri-plugin-store (JSON)
+- **settings.rs** — Persistent storage via tauri-plugin-store (JSON) with JSON export and import
 
 ### Frontend (`src/js/`)
 
