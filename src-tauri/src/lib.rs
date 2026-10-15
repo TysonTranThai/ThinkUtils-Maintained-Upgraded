@@ -14,6 +14,7 @@ mod privileged;
 mod security;
 mod settings;
 mod system_info;
+pub mod pam;
 
 use tauri::{
     menu::{Menu, MenuItem},
@@ -370,6 +371,10 @@ pub fn run() {
             biometrics::configure_biometric_pam,
             biometrics::remove_face_model,
             biometrics::clear_face_models,
+            // PAM Safe Configuration & Recovery
+            pam::check_pam_health,
+            pam::execute_pam_repair,
+            pam::execute_pam_rollback,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

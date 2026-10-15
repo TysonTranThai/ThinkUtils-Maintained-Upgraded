@@ -523,28 +523,26 @@ mkdir -p /lib/security/howdy/models 2>/dev/null || true
 chmod 755 /lib/security/howdy/models 2>/dev/null || true
 
 # Fix pam.py Python 3 compatibility
-if [ -f /lib/security/howdy/pam.py ] && grep -q 'import ConfigParser' /lib/security/howdy/pam.py 2>/dev/null; then
-  sed -i 's/import ConfigParser/try:\\n    import configparser\\nexcept ImportError:\\n    import ConfigParser as configparser/' /lib/security/howdy/pam.py 2>/dev/null || true
+if [ -f /lib/security/howdy/pam.py ]; then
+  if grep -q 'import ConfigParser' /lib/security/howdy/pam.py 2>/dev/null; then
+    sed -i 's/import ConfigParser/try:\\n    import configparser\\nexcept ImportError:\\n    import ConfigParser as configparser/' /lib/security/howdy/pam.py 2>/dev/null || true
+  fi
+  sed -i 's/config = ConfigParser.ConfigParser()/config = configparser.ConfigParser()/' /lib/security/howdy/pam.py 2>/dev/null || true
 fi
 
-# Ensure suppress_unknown=true and dark_threshold is tolerant in config.ini
+# Ensure suppress_unknown=true, dark_threshold is tolerant, and disable slow/failing snapshots
 if [ -f /lib/security/howdy/config.ini ]; then
   sed -i 's|^suppress_unknown = .*|suppress_unknown = true|' /lib/security/howdy/config.ini 2>/dev/null || true
   sed -i 's|^dark_threshold = .*|dark_threshold = 85|' /lib/security/howdy/config.ini 2>/dev/null || true
+  sed -i 's|^capture_failed = .*|capture_failed = false|' /lib/security/howdy/config.ini 2>/dev/null || true
+  sed -i 's|^capture_successful = .*|capture_successful = false|' /lib/security/howdy/config.ini 2>/dev/null || true
 fi
+mkdir -p /lib/security/howdy/snapshots 2>/dev/null || true
+chmod 777 /lib/security/howdy/snapshots 2>/dev/null || true
 
-# Ensure PAM common-auth includes Howdy
-if [ -f /lib/security/howdy/pam.py ] && [ -f /etc/pam.d/common-auth ]; then
-  if ! grep -q 'howdy/pam.py' /etc/pam.d/common-auth 2>/dev/null; then
-    sed -i '/pam_unix\\.so/i auth\\t[success=end default=ignore]\\tpam_python.so /lib/security/howdy/pam.py' /etc/pam.d/common-auth 2>/dev/null || true
-  fi
-fi
-
-# Ensure PAM common-auth includes fprintd if present
-if [ -f /usr/lib/x86_64-linux-gnu/security/pam_fprintd.so ] || [ -f /lib/x86_64-linux-gnu/security/pam_fprintd.so ]; then
-  if [ -f /etc/pam.d/common-auth ] && ! grep -q 'pam_fprintd.so' /etc/pam.d/common-auth 2>/dev/null; then
-    sed -i '/pam_unix\\.so/i auth\\t[success=end default=ignore]\\tpam_fprintd.so max-tries=1 timeout=10' /etc/pam.d/common-auth 2>/dev/null || true
-  fi
+# Safe PAM synchronization on Debian (never direct sed on system PAM files)
+if [ -x /usr/sbin/pam-auth-update ]; then
+  DEBIAN_FRONTEND=noninteractive /usr/sbin/pam-auth-update --package --enable howdy 2>/dev/null || true
 fi
 
 if [ ! -f /lib/security/howdy/dlib-data/shape_predictor_5_face_landmarks.dat ]; then
@@ -1474,12 +1472,9 @@ for p in ['/lib/security/howdy/models/{user}.dat', '/etc/howdy/models/{user}.dat
   chmod 755 /lib/security/howdy/models 2>/dev/null || true
   chmod 644 /lib/security/howdy/models/*.dat 2>/dev/null || true
 
-  # Ensure PAM is active for login and sudo
+  # Synchronize PAM safely via pam-auth-update if available
   if [ -x /usr/sbin/pam-auth-update ]; then
     DEBIAN_FRONTEND=noninteractive /usr/sbin/pam-auth-update --package --enable howdy 2>/dev/null || true
-  fi
-  if [ -f /etc/pam.d/common-auth ] && ! grep -q -E 'howdy|pam_python.*pam\\.py' /etc/pam.d/common-auth 2>/dev/null; then
-    sed -i '/pam_unix\\.so/i auth\\t[success=end default=ignore]\\tpam_python.so /lib/security/howdy/pam.py' /etc/pam.d/common-auth 2>/dev/null || true
   fi
 fi
 exit $STATUS
@@ -1537,78 +1532,15 @@ exit $STATUS
 
 #[tauri::command]
 pub fn configure_biometric_pam() -> BiometricActionResponse {
-    let script = "\
-# 1. Fix pam.py Python 3 compatibility
-if [ -f /lib/security/howdy/pam.py ] && grep -q 'import ConfigParser' /lib/security/howdy/pam.py 2>/dev/null; then
-  sed -i 's/import ConfigParser/try:\\n    import configparser\\nexcept ImportError:\\n    import ConfigParser as configparser/' /lib/security/howdy/pam.py 2>/dev/null || true
-fi
-
-# 2. Ensure suppress_unknown=true and dark_threshold is tolerant in config.ini
-for cfg in /lib/security/howdy/config.ini /etc/howdy/config.ini; do
-  if [ -f \"$cfg\" ]; then
-    sed -i 's|^suppress_unknown = .*|suppress_unknown = true|' \"$cfg\" 2>/dev/null || true
-    sed -i 's|^dark_threshold = .*|dark_threshold = 85|' \"$cfg\" 2>/dev/null || true
-  fi
-done
-
-# 3. Update PAM via pam-auth-update if available
-if [ -x /usr/sbin/pam-auth-update ]; then
-  DEBIAN_FRONTEND=noninteractive /usr/sbin/pam-auth-update --package --enable howdy 2>/dev/null || true
-  if [ -f /usr/lib/x86_64-linux-gnu/security/pam_fprintd.so ] || [ -f /lib/x86_64-linux-gnu/security/pam_fprintd.so ]; then
-    DEBIAN_FRONTEND=noninteractive /usr/sbin/pam-auth-update --package --enable fprintd 2>/dev/null || true
-  fi
-fi
-
-# 4. Fallback check for Debian /etc/pam.d/common-auth
-if [ -f /etc/pam.d/common-auth ]; then
-  if ! grep -q -E 'howdy|pam_python.*pam\\.py' /etc/pam.d/common-auth 2>/dev/null; then
-    sed -i '/pam_unix\\.so/i auth\\t[success=end default=ignore]\\tpam_python.so /lib/security/howdy/pam.py' /etc/pam.d/common-auth 2>/dev/null || true
-  fi
-  if ([ -f /usr/lib/x86_64-linux-gnu/security/pam_fprintd.so ] || [ -f /lib/x86_64-linux-gnu/security/pam_fprintd.so ]) && ! grep -q 'pam_fprintd\\.so' /etc/pam.d/common-auth 2>/dev/null; then
-    sed -i '/pam_unix\\.so/i auth\\t[success=end default=ignore]\\tpam_fprintd.so max-tries=1 timeout=10' /etc/pam.d/common-auth 2>/dev/null || true
-  fi
-fi
-
-# 5. Check for Arch/Fedora system-auth
-if [ -f /etc/pam.d/system-auth ]; then
-  if [ -f /lib64/security/pam_howdy.so ] || [ -f /usr/lib/security/pam_howdy.so ]; then
-    if ! grep -q 'pam_howdy\\.so' /etc/pam.d/system-auth 2>/dev/null; then
-      sed -i '/pam_unix\\.so/i auth\\tsufficient\\tpam_howdy.so' /etc/pam.d/system-auth 2>/dev/null || true
-    fi
-  fi
-fi
-";
-
-    let output = Command::new("pkexec")
-        .args(["bash", "-c", script])
-        .output();
-
-    match output {
-        Ok(out) => {
-            let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-            let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-            let (fprint_pam, howdy_pam) = check_pam_status();
-            if out.status.success() || howdy_pam || fprint_pam {
-                BiometricActionResponse {
-                    success: true,
-                    message: "Biometric PAM authentication configured successfully".to_string(),
-                    logs: vec![stdout],
-                    error: None,
-                }
-            } else {
-                BiometricActionResponse {
-                    success: false,
-                    message: "Failed to configure PAM for biometrics".to_string(),
-                    logs: vec![stderr.clone()],
-                    error: Some(stderr),
-                }
-            }
-        }
-        Err(e) => BiometricActionResponse {
-            success: false,
-            message: format!("Failed to run PAM configuration: {}", e),
-            logs: vec![e.to_string()],
-            error: Some(e.to_string()),
+    let result = crate::pam::execute_pam_repair();
+    BiometricActionResponse {
+        success: result.success,
+        message: result.message,
+        logs: result.cleaned_files,
+        error: if result.errors.is_empty() {
+            None
+        } else {
+            Some(result.errors.join("; "))
         },
     }
 }
