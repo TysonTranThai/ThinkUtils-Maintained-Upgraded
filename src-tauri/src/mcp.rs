@@ -722,7 +722,6 @@ mod tests {
 
     // -- McpServerState defaults --
 
-
     #[test]
     fn default_state() {
         let state = McpServerState::default();

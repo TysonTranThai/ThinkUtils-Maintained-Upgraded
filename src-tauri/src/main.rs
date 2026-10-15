@@ -66,7 +66,9 @@ fn main() {
                 println!();
                 println!("Options:");
                 println!("  --check-pam     Check PAM authentication configuration health");
-                println!("  --repair-pam    Safely sanitize, repair, and validate PAM configuration");
+                println!(
+                    "  --repair-pam    Safely sanitize, repair, and validate PAM configuration"
+                );
                 println!("  --rollback-pam  Rollback PAM configuration to the latest backup");
                 println!("  --help, -h      Show this help message");
                 println!();

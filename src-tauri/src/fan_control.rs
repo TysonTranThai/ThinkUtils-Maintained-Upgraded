@@ -419,7 +419,10 @@ pub async fn write_fan_command(command: &str) -> Result<(), String> {
 
     match crate::privileged::run_script(&script_content).await {
         Ok(output) if output.status.success() => Ok(()),
-        Ok(_) => Err("Permission denied. Click 'Grant Permissions' to avoid repeated password prompts.".to_string()),
+        Ok(_) => Err(
+            "Permission denied. Click 'Grant Permissions' to avoid repeated password prompts."
+                .to_string(),
+        ),
         Err(e) => Err(format!("Failed to execute pkexec: {}", e)),
     }
 }
@@ -483,7 +486,11 @@ pub async fn apply_fan_speed(app: &tauri::AppHandle, raw_speed: &str) -> Result<
             if speed != "auto" {
                 crate::fan_curve::arm_fan_watchdog().await;
             }
-            let _ = app.emit_to("main", "fan-speed-changed", serde_json::json!({ "speed": speed }));
+            let _ = app.emit_to(
+                "main",
+                "fan-speed-changed",
+                serde_json::json!({ "speed": speed }),
+            );
             let _ = app.emit("fan-speed-changed", serde_json::json!({ "speed": speed }));
             Ok(format!("Fan speed set to: {}", speed))
         }
@@ -495,10 +502,7 @@ pub async fn apply_fan_speed(app: &tauri::AppHandle, raw_speed: &str) -> Result<
 }
 
 #[tauri::command]
-pub async fn set_fan_speed(
-    app: tauri::AppHandle,
-    speed: String,
-) -> ApiResponse<String> {
+pub async fn set_fan_speed(app: tauri::AppHandle, speed: String) -> ApiResponse<String> {
     match apply_fan_speed(&app, &speed).await {
         Ok(msg) => ApiResponse {
             success: true,

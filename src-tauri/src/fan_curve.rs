@@ -388,7 +388,10 @@ pub async fn fan_curve_background_task(app: AppHandle) {
                         "[Fan Supervisor] Full speed active but hw level is {:?}; re-asserting full-speed",
                         hw_level
                     );
-                    if crate::fan_control::write_fan_command("level full-speed").await.is_ok() {
+                    if crate::fan_control::write_fan_command("level full-speed")
+                        .await
+                        .is_ok()
+                    {
                         arm_fan_watchdog().await;
                         last_armed = Some(Instant::now());
                         last_applied_speed = Some("full-speed".to_string());

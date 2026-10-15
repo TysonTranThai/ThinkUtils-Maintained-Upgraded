@@ -423,7 +423,8 @@ pub async fn enroll_fingerprint(
                 );
             } else if line_trimmed.contains("enroll-retry-scan") {
                 evt.status = "retry-scan".to_string();
-                evt.message = "Scan was not clear. Press your finger flat on the sensor.".to_string();
+                evt.message =
+                    "Scan was not clear. Press your finger flat on the sensor.".to_string();
             } else if line_trimmed.contains("enroll-swipe-too-short") {
                 evt.status = "swipe-too-short".to_string();
                 evt.message = "Touch was too brief. Hold your finger slightly longer.".to_string();
@@ -491,9 +492,14 @@ pub async fn enroll_fingerprint(
     BiometricActionResponse {
         success,
         message: if success {
-            format!("{} enrolled successfully!", format_finger_label(&target_finger))
+            format!(
+                "{} enrolled successfully!",
+                format_finger_label(&target_finger)
+            )
         } else {
-            err_msg.clone().unwrap_or_else(|| "Enrollment failed".to_string())
+            err_msg
+                .clone()
+                .unwrap_or_else(|| "Enrollment failed".to_string())
         },
         logs,
         error: if success { None } else { err_msg },
@@ -638,7 +644,8 @@ pub async fn verify_fingerprint(
             if !line_trimmed.is_empty() {
                 logs.push(format!("STDERR: {}", line_trimmed));
                 if line_trimmed.contains("NoEnrolledPrints") {
-                    result_msg = "No fingerprints are enrolled yet. Please enroll a finger first.".to_string();
+                    result_msg = "No fingerprints are enrolled yet. Please enroll a finger first."
+                        .to_string();
                     let evt = FingerprintVerifyProgress {
                         status: "error".to_string(),
                         message: result_msg.clone(),
@@ -667,7 +674,11 @@ pub async fn verify_fingerprint(
             result_msg
         },
         logs,
-        error: if verified_ok { None } else { Some("Verification did not match".to_string()) },
+        error: if verified_ok {
+            None
+        } else {
+            Some("Verification did not match".to_string())
+        },
     }
 }
 
@@ -803,7 +814,11 @@ echo '=== ALL_DONE ==='
             "Failed to install fingerprint packages".to_string()
         },
         logs,
-        error: if is_ok { None } else { Some("Package installation exited with error".to_string()) },
+        error: if is_ok {
+            None
+        } else {
+            Some("Package installation exited with error".to_string())
+        },
     }
 }
 
@@ -828,9 +843,15 @@ mod tests {
 
     #[test]
     fn format_finger_labels_correctly() {
-        assert_eq!(format_finger_label("right-index-finger"), "Right Index Finger");
+        assert_eq!(
+            format_finger_label("right-index-finger"),
+            "Right Index Finger"
+        );
         assert_eq!(format_finger_label("left-thumb"), "Left Thumb");
-        assert_eq!(format_finger_label("right-middle-finger"), "Right Middle Finger");
+        assert_eq!(
+            format_finger_label("right-middle-finger"),
+            "Right Middle Finger"
+        );
         assert_eq!(format_finger_label("custom-finger"), "custom-finger");
     }
 

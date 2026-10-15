@@ -334,7 +334,11 @@ pub fn get_power_consumption() -> ApiResponse<PowerConsumptionData> {
             };
 
             let p = if let Ok(p_str) = fs::read_to_string(format!("{}/power_now", bat_path)) {
-                p_str.trim().parse::<f32>().map(|v| v / 1_000_000.0).unwrap_or(0.0)
+                p_str
+                    .trim()
+                    .parse::<f32>()
+                    .map(|v| v / 1_000_000.0)
+                    .unwrap_or(0.0)
             } else {
                 let v = read_f32("voltage_now");
                 let c = read_f32("current_now");

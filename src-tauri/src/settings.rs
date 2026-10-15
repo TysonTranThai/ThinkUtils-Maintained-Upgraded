@@ -437,33 +437,41 @@ mod tests {
 
     #[test]
     fn rejects_invalid_fan_mode() {
-        let mut settings = AppSettings::default();
-        settings.fan_mode = "turbo-hyper".to_string();
+        let settings = AppSettings {
+            fan_mode: "turbo-hyper".to_string(),
+            ..Default::default()
+        };
         assert!(validate_settings(&settings).is_err());
     }
 
     #[test]
     fn rejects_out_of_range_fan_level() {
-        let mut settings = AppSettings::default();
-        settings.fan_level = 9;
+        let settings = AppSettings {
+            fan_level: 9,
+            ..Default::default()
+        };
         assert!(validate_settings(&settings).is_err());
     }
 
     #[test]
     fn rejects_inverted_battery_thresholds() {
-        let mut settings = AppSettings::default();
-        settings.battery_start_threshold = 85;
-        settings.battery_stop_threshold = 80;
+        let settings = AppSettings {
+            battery_start_threshold: 85,
+            battery_stop_threshold: 80,
+            ..Default::default()
+        };
         assert!(validate_settings(&settings).is_err());
     }
 
     #[test]
     fn rejects_invalid_curve_point_temp() {
-        let mut settings = AppSettings::default();
-        settings.fan_curve_points = vec![CurvePoint {
-            temp: 150,
-            level: 5,
-        }];
+        let settings = AppSettings {
+            fan_curve_points: vec![CurvePoint {
+                temp: 150,
+                level: 5,
+            }],
+            ..Default::default()
+        };
         assert!(validate_settings(&settings).is_err());
     }
 
@@ -473,24 +481,27 @@ mod tests {
         let json = serde_json::to_string_pretty(&original).expect("serializes to json");
         let parsed: AppSettings = serde_json::from_str(&json).expect("deserializes from json");
         assert_eq!(original.fan_mode, parsed.fan_mode);
-        assert_eq!(original.battery_stop_threshold, parsed.battery_stop_threshold);
+        assert_eq!(
+            original.battery_stop_threshold,
+            parsed.battery_stop_threshold
+        );
     }
 
     #[test]
     fn rejects_invalid_theme() {
-        let mut settings = AppSettings::default();
-        settings.theme = "neon-glow".to_string();
+        let settings = AppSettings {
+            theme: "neon-glow".to_string(),
+            ..Default::default()
+        };
         assert!(validate_settings(&settings).is_err());
     }
 
     #[test]
     fn rejects_out_of_bounds_curve_point_level() {
-        let mut settings = AppSettings::default();
-        settings.fan_curve_points = vec![CurvePoint {
-            temp: 50,
-            level: 8,
-        }];
+        let settings = AppSettings {
+            fan_curve_points: vec![CurvePoint { temp: 50, level: 8 }],
+            ..Default::default()
+        };
         assert!(validate_settings(&settings).is_err());
     }
 }
-

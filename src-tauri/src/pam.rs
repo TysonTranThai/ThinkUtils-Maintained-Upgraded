@@ -399,7 +399,10 @@ pub fn check_pam_health() -> PamHealthReport {
                 common_auth_has_unix = true;
             }
             if trimmed.contains("howdy/pam.py") || trimmed.contains("pam_howdy.so") {
-                malformed_rules.push(format!("/etc/pam.d/common-auth: residual face rule '{}'", trimmed));
+                malformed_rules.push(format!(
+                    "/etc/pam.d/common-auth: residual face rule '{}'",
+                    trimmed
+                ));
             }
         }
     }
@@ -407,7 +410,9 @@ pub fn check_pam_health() -> PamHealthReport {
     if let Ok(content) = fs::read_to_string("/etc/pam.d/gdm-fingerprint") {
         for line in content.lines() {
             let trimmed = line.trim();
-            if trimmed.contains("success=end") || (trimmed.contains("howdy") && !trimmed.starts_with('#')) {
+            if trimmed.contains("success=end")
+                || (trimmed.contains("howdy") && !trimmed.starts_with('#'))
+            {
                 malformed_rules.push(format!("/etc/pam.d/gdm-fingerprint: {}", trimmed));
                 gdm_fingerprint_clean = false;
             }
@@ -450,9 +455,7 @@ fn is_root() -> bool {
 pub fn execute_pam_repair() -> PamRepairResult {
     let script = build_pam_repair_bash_script();
     let output = if is_root() {
-        Command::new("bash")
-            .args(["-c", &script])
-            .output()
+        Command::new("bash").args(["-c", &script]).output()
     } else {
         Command::new("pkexec")
             .args(["bash", "-c", &script])
@@ -495,9 +498,7 @@ pub fn execute_pam_repair() -> PamRepairResult {
 pub fn execute_pam_rollback() -> PamRepairResult {
     let script = build_pam_rollback_bash_script();
     let output = if is_root() {
-        Command::new("bash")
-            .args(["-c", &script])
-            .output()
+        Command::new("bash").args(["-c", &script]).output()
     } else {
         Command::new("pkexec")
             .args(["bash", "-c", &script])
@@ -557,8 +558,12 @@ mod tests {
         // Valid keywords
         assert!(is_valid_pam_control("[success=ok default=ignore]"));
         assert!(is_valid_pam_control("[success=done default=ignore]"));
-        assert!(is_valid_pam_control("[success=done new_authtok_reqd=done default=ignore]"));
-        assert!(is_valid_pam_control("[success=ok ignore=ignore module_unknown=ignore default=bad]"));
+        assert!(is_valid_pam_control(
+            "[success=done new_authtok_reqd=done default=ignore]"
+        ));
+        assert!(is_valid_pam_control(
+            "[success=ok ignore=ignore module_unknown=ignore default=bad]"
+        ));
     }
 
     #[test]
@@ -574,14 +579,22 @@ mod tests {
     fn test_validates_full_pam_lines() {
         assert!(validate_pam_line("auth required pam_unix.so nullok").is_ok());
         assert!(validate_pam_line("auth [success=1 default=ignore] pam_unix.so nullok").is_ok());
-        assert!(validate_pam_line("auth [success=2 default=ignore] pam_python.so /lib/security/howdy/pam.py").is_ok());
-        assert!(validate_pam_line("auth sufficient pam_python.so /lib/security/howdy/pam.py").is_ok());
+        assert!(validate_pam_line(
+            "auth [success=2 default=ignore] pam_python.so /lib/security/howdy/pam.py"
+        )
+        .is_ok());
+        assert!(
+            validate_pam_line("auth sufficient pam_python.so /lib/security/howdy/pam.py").is_ok()
+        );
         assert!(validate_pam_line("@include common-auth").is_ok());
         assert!(validate_pam_line("# comment line").is_ok());
         assert!(validate_pam_line("   ").is_ok());
 
         // Malformed lines must fail
-        assert!(validate_pam_line("auth [success=end default=ignore] pam_python.so /lib/security/howdy/pam.py").is_err());
+        assert!(validate_pam_line(
+            "auth [success=end default=ignore] pam_python.so /lib/security/howdy/pam.py"
+        )
+        .is_err());
         assert!(validate_pam_line("bad_type required pam_unix.so").is_err());
     }
 

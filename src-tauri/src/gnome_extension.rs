@@ -250,7 +250,11 @@ mod tests {
         let single = parse_enabled_extensions("['thinkutils@tysontranthai.site']");
         assert_eq!(single, vec!["thinkutils@tysontranthai.site"]);
 
-        let multiple = parse_enabled_extensions("['caffeine@patapon.info', 'thinkutils@tysontranthai.site']");
-        assert_eq!(multiple, vec!["caffeine@patapon.info", "thinkutils@tysontranthai.site"]);
+        let multiple =
+            parse_enabled_extensions("['caffeine@patapon.info', 'thinkutils@tysontranthai.site']");
+        assert_eq!(
+            multiple,
+            vec!["caffeine@patapon.info", "thinkutils@tysontranthai.site"]
+        );
     }
 }

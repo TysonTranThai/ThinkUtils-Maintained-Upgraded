@@ -8,13 +8,13 @@ pub mod gnome_extension;
 pub mod hardware_root;
 mod mcp;
 mod monitor;
+pub mod pam;
 mod performance;
 mod permissions;
 mod privileged;
 mod security;
 mod settings;
 mod system_info;
-pub mod pam;
 
 use tauri::{
     menu::{Menu, MenuItem},
@@ -197,16 +197,20 @@ pub fn run() {
             } else {
                 fan_curve::FanTargetMode::Auto
             };
-            let fan_curve_state =
-                fan_curve::FanCurveState::new(std::sync::Mutex::new(fan_curve::FanSupervisorState {
+            let fan_curve_state = fan_curve::FanCurveState::new(std::sync::Mutex::new(
+                fan_curve::FanSupervisorState {
                     mode: initial_mode,
                     curve_config: saved_config,
-                }));
+                },
+            ));
             app.manage(fan_curve_state);
 
             // Handle standalone CLI fan speed argument if started headlessly
             let cli_args: Vec<String> = std::env::args().collect();
-            if let Some(fan_idx) = cli_args.iter().position(|a| a == "--fan" || a == "--set-fan") {
+            if let Some(fan_idx) = cli_args
+                .iter()
+                .position(|a| a == "--fan" || a == "--set-fan")
+            {
                 if let Some(target_speed) = cli_args.get(fan_idx + 1) {
                     let speed = target_speed.clone();
                     let app_handle = app.handle().clone();
