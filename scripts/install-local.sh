@@ -30,10 +30,10 @@ chmod +x "$HOME/.local/bin/thinkutils"
 echo "✓ Installed executable: $HOME/.local/bin/thinkutils"
 
 # 2. Install desktop launcher
+rm -f "$HOME/.local/share/applications/com.vietanhnv.thinkutils.desktop"
 cp "thinkutils.desktop" "$HOME/.local/share/applications/thinkutils.desktop"
 sed -i "s|^Exec=.*|Exec=$HOME/.local/bin/thinkutils|" "$HOME/.local/share/applications/thinkutils.desktop"
 sed -i "s|^Icon=.*|Icon=$HOME/.local/share/icons/thinkutils.png|" "$HOME/.local/share/applications/thinkutils.desktop"
-cp "$HOME/.local/share/applications/thinkutils.desktop" "$HOME/.local/share/applications/com.vietanhnv.thinkutils.desktop"
 echo "✓ Installed desktop entry: $HOME/.local/share/applications/thinkutils.desktop"
 
 # 3. Install icons
