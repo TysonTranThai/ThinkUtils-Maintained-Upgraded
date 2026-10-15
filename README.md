@@ -1,412 +1,287 @@
-# ThinkUtils
+<div align="center">
 
-A powerful, native desktop application that unlocks the full potential of your ThinkPad on Linux. Built with Tauri for blazing-fast performance, ThinkUtils gives you complete control over fan speeds, battery health, CPU performance, and system monitoring—all through a sleek, modern interface inspired by ThinkPad's iconic design.
+# ⚡ ThinkUtils
 
-![ThinkUtils](https://img.shields.io/badge/platform-Linux-blue)
-![License](https://img.shields.io/badge/license-LGPL%20v3-green)
-![Tauri](https://img.shields.io/badge/Built%20with-Tauri-orange)
-[![Documentation](https://img.shields.io/badge/docs-thinkutils.tysontranthai.site-blue)](https://thinkutils.tysontranthai.site)
+### The Ultimate ThinkPad Companion Utility for Linux & Windows
 
-## Screenshots
+**Hardware Fan Curves • Dual-Battery Thresholds • CPU Governors • Native PAM Biometrics • AI Model Context Protocol (MCP)**
 
-### Home Dashboard
-![Home Dashboard](./screenshots/home.png)
+<p align="center">
+  <a href="https://github.com/TysonTranThai/ThinkUtils-Maintained-Upgraded/actions/workflows/ci.yml">
+    <img src="https://github.com/TysonTranThai/ThinkUtils-Maintained-Upgraded/actions/workflows/ci.yml/badge.svg" alt="CI Status" />
+  </a>
+  <a href="https://github.com/TysonTranThai/ThinkUtils-Maintained-Upgraded/releases">
+    <img src="https://img.shields.io/github/v/release/TysonTranThai/ThinkUtils-Maintained-Upgraded?color=blue&label=release" alt="Latest Release" />
+  </a>
+  <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-informational?logo=linux&logoColor=white" alt="Platform" />
+  <img src="https://img.shields.io/badge/Built%20with-Tauri%20v2%20%2B%20Rust-orange?logo=tauri&logoColor=white" alt="Tauri + Rust" />
+  <a href="./LICENSE">
+    <img src="https://img.shields.io/badge/License-LGPL%20v3-green" alt="License" />
+  </a>
+  <a href="https://thinkutils.tysontranthai.site">
+    <img src="https://img.shields.io/badge/Docs-thinkutils.tysontranthai.site-blue" alt="Documentation" />
+  </a>
+</p>
 
-### Fan Control
-![Fan Control](./screenshots/fan_control.png)
+<p align="center">
+  <a href="#-key-features">Key Features</a> •
+  <a href="#-ui-showcase">UI Showcase</a> •
+  <a href="#-installation">Installation</a> •
+  <a href="#-thinkpad-hardware-setup">Hardware Setup</a> •
+  <a href="#-pam-security--health-cli">PAM CLI</a> •
+  <a href="#-ai-integration-mcp-server">MCP Server</a> •
+  <a href="#-building-from-source">Development</a>
+</p>
 
-### Performance Tuning
-![Performance](./screenshots/performance.png)
+---
 
-### System Monitor
-![System Monitor](./screenshots/system_monitor.png)
+<img src="./screenshots/home.png" alt="ThinkUtils Home Dashboard" width="900" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);" />
 
-### Battery
-![Battery](./screenshots/battery.png)
+</div>
 
-### System Information
-![System Info](./screenshots/system_info.png)
+<br/>
 
-### Security
-![Security](./screenshots/security.png)
+## 📖 Overview
 
-### AI Integration
-![AI Integration](./screenshots/ai_integration.png)
+**ThinkUtils** is a high-performance, native desktop utility tailored specifically for IBM & Lenovo ThinkPad hardware. Powered by a lightweight **Rust** backend and **Tauri v2**, ThinkUtils gives you granular control over thermal fan curves, charge thresholds, CPU governors, and system telemetry—all packaged in a sleek dark interface inspired by ThinkPad's iconic design language.
 
-### Settings Sync
-![Settings Sync](./screenshots/settings_sync.png)
+Whether you need whisper-quiet operation in a quiet library, maximum thermal dissipation during heavy compilation, or prolonged battery lifespan on the go, ThinkUtils gives you full command of your hardware without clunky scripts or terminal juggling.
 
-## Installation
+---
 
-### Ubuntu/Debian (APT)
+## ✨ Key Features
 
+| Feature | Description |
+| :--- | :--- |
+| 🌀 **Intelligent Fan Control** | Direct hardware EC interface via `thinkpad_acpi`. Custom interactive temperature-to-RPM curves, auto/manual steps (0–7), full blast, and automated safety watchdog re-arming. |
+| 🔋 **Battery Health & Thresholds** | Prolong battery life using the 40–80% charging cycle rule. Set custom start/stop charge limits with multi-battery support, degradation metrics, and cycle counts. |
+| ⚡ **Performance & CPU Profiles** | Live scaling policy switching (`performance`, `powersave`, `schedutil`, `ondemand`), Intel Turbo Boost toggle, Energy Performance Preference (EPP), and per-core clock monitoring. |
+| 📊 **Real-Time System Telemetry** | Comprehensive live dashboards for per-core CPU loads, memory & swap allocation, storage mount points, network interface throughput, and top active processes. |
+| 🛡️ **Biometrics & Security Suite** | Native fingerprint enrollment, ClamAV antivirus scanning, and built-in PAM health verification & recovery tooling (`--check-pam`, `--repair-pam`, `--rollback-pam`). |
+| 🤖 **AI Model Context Protocol (MCP)** | Built-in SSE MCP server allowing AI assistants (Claude Code, Claude Desktop, Cursor) to inspect telemetry, adjust fan curves, and tune performance parameters safely. |
+| 🪟 **Cross-Platform Readiness** | Universal Linux packages (`.deb`, `.rpm`, `.AppImage`) and standalone native Windows 10/11 executables and installers. |
+| ☁️ **Settings Sync & Backup** | Export and import your finely tuned configurations to JSON, or back them up seamlessly to Google Drive. |
+
+---
+
+## 📸 UI Showcase
+
+<div align="center">
+
+| 🌀 Fan Control & Curve Editor | 🔋 Dual-Battery Management |
+| :---: | :---: |
+| <img src="./screenshots/fan_control.png" width="440" alt="Fan Control" /> | <img src="./screenshots/battery.png" width="440" alt="Battery Management" /> |
+| **⚡ CPU Performance Tuning** | **📊 System Resources & Processes** |
+| <img src="./screenshots/performance.png" width="440" alt="Performance Tuning" /> | <img src="./screenshots/system_monitor.png" width="440" alt="System Monitor" /> |
+| **🛡️ Security & Biometrics** | **🤖 AI Integration (MCP Server)** |
+| <img src="./screenshots/security.png" width="440" alt="Security View" /> | <img src="./screenshots/ai_integration.png" width="440" alt="AI MCP Server" /> |
+
+<details>
+<summary><b>🔍 Click to view more screenshots (System Info, Settings Sync, Extended Dashboard)</b></summary>
+<br/>
+
+| 💻 Hardware & Kernel Info | ⚙️ Settings & Cloud Backup |
+| :---: | :---: |
+| <img src="./screenshots/system_info.png" width="440" alt="System Info" /> | <img src="./screenshots/settings_sync.png" width="440" alt="Settings Sync" /> |
+
+<br/>
+
+**Extended Home Dashboard Overview**
+<br/>
+<img src="./screenshots/home_extended.png" width="800" alt="Extended Dashboard" />
+
+</details>
+
+</div>
+
+---
+
+## 🚀 Installation
+
+Prebuilt release binaries for Linux (`.deb`, `.rpm`, `.AppImage`) and Windows (`.exe`) are available on the [**GitHub Releases Page**](https://github.com/TysonTranThai/ThinkUtils-Maintained-Upgraded/releases).
+
+### 🐧 Ubuntu / Debian / Pop!_OS / Linux Mint
+
+**Option 1: Using APT Repository**
 ```bash
 echo "deb [trusted=yes] https://gh.vietanh.dev/ThinkUtils/apt ./" | sudo tee /etc/apt/sources.list.d/thinkutils.list
 sudo apt update
 sudo apt install thinkutils
 ```
 
-### Manual Download
-
-Download the latest `.deb`, `.rpm`, or `.AppImage` from [GitHub Releases](https://github.com/TysonTranThai/ThinkUtils-Maintained-Upgraded/releases).
-
+**Option 2: Direct .deb Package**
 ```bash
-# Debian/Ubuntu
+# Download the latest thinkutils_*.deb from Releases
 sudo dpkg -i thinkutils_*.deb
-
-# Fedora/RHEL
-sudo rpm -i thinkutils-*.rpm
+sudo apt install -f  # resolve any missing dependencies if needed
 ```
 
-## Features
-
-### 🏠 Home Dashboard
-Your command center for quick system adjustments. The home dashboard provides real-time monitoring and quick access to essential controls.
-
-- **System Overview**: Real-time monitoring of CPU usage and temperature, memory usage, fan speed and mode, battery level and status
-- **Power Profile Control**: Instantly switch between Power Saver, Balanced, and Performance modes to match your workflow
-- **CPU Governor**: Quick access to change CPU frequency scaling policy (Powersave, Balanced, Performance)
-- **Turbo Boost Toggle**: Enable or disable CPU turbo frequencies with a single click
-- **Battery Threshold Display**: View current charge limit settings (e.g., 40%-80%) configured for battery longevity
-
-### 🌀 Fan Control
-Take control of your ThinkPad's legendary cooling system. Whether you need whisper-quiet operation in a library or maximum cooling for intensive workloads, ThinkUtils gives you precise control.
-
-- **Real-time Monitoring**: Watch CPU/GPU temperatures and fan RPM update live—know exactly what's happening inside your machine
-- **Multiple Control Modes**:
-  - **Auto Mode**: Let the system intelligently manage cooling based on temperature (recommended for most users)
-  - **Manual Mode**: Set precise fan speed levels from 0 (silent) to 7 (maximum)—perfect for finding the sweet spot between noise and cooling
-  - **Maximum Mode**: Run fans at full blast for intensive tasks like video rendering or gaming
-- **Fan Curve Editor**: Draw custom temperature-to-speed curves for fully automated, fine-grained control
-- **Temperature Sensors**: Monitor every thermal sensor in your system—CPU cores, GPU, battery, and more
-- **Permission Management**: Secure, one-time elevated access using pkexec—no need to run the entire app as root
-
-### 🔋 Battery Management
-Extend your battery's lifespan by years with intelligent charge management. ThinkUtils helps you implement the 40-80 rule that professionals use to maximize battery longevity.
-
-- **Multi-Battery Support**: Monitor all installed batteries—perfect for ThinkPads with dual battery setups
-- **Charge Thresholds**: Set custom start/stop charging limits (e.g., start at 40%, stop at 80%) to dramatically reduce battery wear and extend its useful life
-- **Battery Health**: Track capacity degradation, health percentage, and total charge cycles—know when it's time for a replacement
-- **Real-time Stats**: Monitor current charge level, voltage, power draw, and estimated time remaining
-
-### ⚡ Performance Tuning
-Squeeze every drop of performance from your CPU or maximize battery life—your choice. Fine-tune how your ThinkPad manages processor power and frequency scaling.
-
-- **CPU Governor Control**: Choose your scaling policy—performance for maximum speed, powersave for battery life, schedutil for intelligent scheduling, or ondemand for dynamic adjustment
-- **Power Profiles**: System-wide power management profiles that coordinate CPU, GPU, and other components for optimal performance or efficiency
-- **Turbo Boost**: Toggle Intel Turbo Boost on/off—disable it to reduce heat and power consumption, or enable it for burst performance
-- **Frequency Monitoring**: Watch your CPU frequency scale in real-time and see min/max ranges for each core
-
-### 📊 System Monitor
-A comprehensive system dashboard that shows you everything happening on your ThinkPad. No need for multiple terminal windows—get all your metrics in one beautiful interface.
-
-- **CPU Usage**: Per-core utilization with frequency display and 1/5/15 minute load averages—spot bottlenecks instantly
-- **Memory Stats**: RAM and swap usage with detailed breakdowns of used, available, and total memory
-- **Disk Usage**: Monitor space usage across all mounted filesystems with device names and mount points
-- **Network Activity**: Total bytes and packets transmitted/received for each network interface
-- **Process Monitor**: View top processes by CPU and memory consumption with PID, name, and status
-
-### 💻 System Information
-Know your machine inside and out. Quick access to all your ThinkPad's hardware specifications and system details.
-
-- **Hardware Details**: Complete specs including ThinkPad model, CPU type, total memory, and operating system
-- **Kernel Version**: Current Linux kernel version—useful for troubleshooting compatibility
-- **Hostname**: System identification for network management
-
-### 🛡️ Security
-Built-in security scanning powered by ClamAV.
-
-- **Virus Scanning**: Scan files and directories for threats
-- **Real-time Results**: View scan progress and detected threats
-
-### 🤖 AI Integration (MCP Server)
-Built-in MCP (Model Context Protocol) server that exposes system controls to AI assistants like Claude.
-
-- **AI-Powered Control**: Let AI assistants monitor and adjust your ThinkPad settings
-- **MCP Protocol**: Standard protocol supported by Claude Code, Claude Desktop, and other AI tools
-
-### ⚙️ Settings Management (Import & Export)
-Never lose your carefully tuned settings. Export your ThinkUtils configuration to a local JSON file and restore it anytime.
-
-- **Settings Backup**: Export your fan curves, battery thresholds, power profiles, and application preferences to JSON
-- **Easy Migration**: Moving to another ThinkPad? Simply export your configuration and import it on your new machine
-- **Reset to Defaults**: Quickly restore factory defaults with a single click
-
-## How it Works
-
-ThinkUtils combines the performance of Rust with the flexibility of web technologies to deliver a native desktop experience:
-
-- **Rust backend** provides blazing-fast system access and direct hardware control with minimal overhead
-- **sensors command** (lm-sensors) reads temperature data from all available thermal sensors
-- **/proc/acpi/ibm/fan** interface gives direct access to ThinkPad's fan controller via the thinkpad_acpi kernel module
-- **pkexec** handles elevated permissions securely—only specific operations require root access, not the entire application
-
-## Prerequisites
-
-### Debian / Ubuntu
+### 🔴 Fedora / RHEL / Rocky Linux
 ```bash
-sudo apt install lm-sensors policykit-1
+# Download the latest thinkutils-*.rpm from Releases
+sudo dnf install ./thinkutils-*.rpm
 ```
 
-### Fedora / RHEL
+### 📦 Universal Linux (AppImage)
 ```bash
-sudo dnf install lm_sensors polkit
+chmod +x thinkutils_*.AppImage
+./thinkutils_*.AppImage
 ```
 
-### Arch Linux
-```bash
-sudo pacman -S lm_sensors polkit
-```
-
-## Setup ThinkPad Fan Control
-
-Before using ThinkUtils, you need to enable fan control:
-
-1. Create or edit the thinkpad_acpi configuration:
-```bash
-sudo nano /etc/modprobe.d/thinkpad_acpi.conf
-```
-
-2. Add this line:
-```
-options thinkpad_acpi fan_control=1
-```
-
-3. Reboot your system or reload the module:
-```bash
-sudo modprobe -r thinkpad_acpi
-sudo modprobe thinkpad_acpi
-```
-
-## Development
-
-### Prerequisites
-- Rust (1.70 or later)
-- Node.js and npm
-- Development dependencies for your distribution
-
-**Debian/Ubuntu:**
-```bash
-sudo apt install build-essential \
-    cargo \
-    curl \
-    file \
-    git \
-    libayatana-appindicator3-dev \
-    librsvg2-dev \
-    libssl-dev \
-    libwebkit2gtk-4.1-dev \
-    npm \
-    wget
-```
-
-**Fedora:**
-```bash
-sudo dnf install cargo \
-    curl \
-    file \
-    git \
-    libappindicator-gtk3-devel \
-    librsvg2-devel \
-    npm \
-    openssl-devel \
-    webkit2gtk4.1-devel \
-    wget
-```
-
-### Getting Started
-
-1. **Clone and install dependencies:**
-```bash
-git clone https://github.com/TysonTranThai/ThinkUtils-Maintained-Upgraded.git
-cd ThinkUtils-Maintained-Upgraded
-npm install
-```
-
-2. **Run in development mode:**
-```bash
-npm run tauri dev
-```
-
-3. **Build for production:**
-```bash
-npm run tauri build
-```
-
-The built packages will be in `src-tauri/target/release/bundle/`
-
-### Code Quality & Linting
-
-ThinkUtils uses comprehensive linting and formatting tools:
-
-- **ESLint** — JavaScript linting
-- **HTMLHint** — HTML validation
-- **Stylelint** — CSS linting
-- **Prettier** — Code formatting
-- **Husky + lint-staged** — Pre-commit hooks on staged files
-
-```bash
-npm run lint          # Run all linters
-npm run lint:fix      # Auto-fix issues
-npm run format        # Format all files
-npm run validate      # Full validation (lint + format check)
-```
-
-Pre-commit hooks run automatically on `git commit`. If linting fails, fix with `npm run lint:fix`, re-stage, and commit again.
-
-### Project Structure
-
-```
-ThinkUtils/
-├── src/                        # Frontend (vanilla JS, no framework)
-│   ├── index.html              # Main UI
-│   ├── styles.css              # CSS entry point (imports modules)
-│   ├── styles/                 # Modular CSS (see docs/development/css.md)
-│   ├── icons/                  # SVG icons
-│   ├── assets/                 # Logo and static assets
-│   └── js/                     # JavaScript modules
-│       ├── app.js              # Initialization entry point
-│       ├── state.js            # Centralized state object
-│       ├── dom.js              # Cached DOM references
-│       ├── navigation.js       # View routing
-│       ├── settingsManager.js  # Settings load/save/apply
-│       ├── fanCurve.js         # Canvas-based curve editor
-│       ├── titlebar.js         # Custom window titlebar
-│       ├── about.js            # About dialog
-│       ├── templateLoader.js   # HTML template loading
-│       ├── utils.js            # Shared utilities
-│       └── views/              # One JS file per feature
-│           ├── home.js
-│           ├── fan.js
-│           ├── battery.js
-│           ├── performance.js
-│           ├── monitor.js
-│           ├── system.js
-│           ├── security.js
-│           ├── sync.js
-│           └── mcp.js
-├── src-tauri/                  # Backend (Rust)
-│   ├── src/
-│   │   ├── lib.rs              # Tauri command registration
-│   │   ├── fan_control.rs      # Manual fan speed control
-│   │   ├── fan_curve.rs        # Auto fan curve (background task)
-│   │   ├── battery.rs          # Battery info and thresholds
-│   │   ├── performance.rs      # CPU governor, turbo, power profiles
-│   │   ├── monitor.rs          # System stats (CPU, memory, disk, net)
-│   │   ├── permissions.rs      # One-time permission setup
-│   │   ├── security.rs         # ClamAV integration
-│   │   ├── sync.rs             # Google OAuth + Drive sync
-│   │   ├── settings.rs         # Persistent storage
-│   │   ├── system_info.rs      # Hardware info
-│   │   ├── auth.rs             # OAuth helpers
-│   │   └── mcp.rs              # MCP server
-│   ├── tauri.conf.json         # Tauri configuration
-│   └── icons/                  # Generated app icons
-├── docs/                       # Documentation
-├── scripts/                    # Build and install scripts
-├── polkit/                     # Polkit policy files
-└── screenshots/                # App screenshots
-```
-
-### Documentation
-
-Full documentation at [thinkutils.tysontranthai.site](https://thinkutils.tysontranthai.site), or browse the `docs/` directory:
-- [Getting Started](docs/guide/getting-started.md) — Setup and first run
-- [Installation](docs/guide/installation.md) — Install methods
-- [Permissions](docs/guide/permissions.md) — How permissions work
-- [Architecture](docs/development/architecture.md) — Codebase overview
-- [CSS Architecture](docs/development/css.md) — Frontend styling structure
-- [Google OAuth Setup](docs/development/google-oauth.md) — Cloud sync configuration
-- [Icon Generation](docs/development/icons.md) — Regenerating app icons
-
-## Usage
-
-### Running the Application
-
-Launch ThinkUtils from your application menu or run:
-```bash
-thinkutils
-```
-
-### Navigation
-
-Use the left sidebar to navigate between features:
-- **Home** — Quick settings and system overview
-- **Fan Control** — Manage cooling and temperatures
-- **Battery** — Battery health and charge thresholds
-- **Performance** — CPU governor and power profiles
-- **Monitor** — Real-time system resource monitoring
-- **System Info** — Hardware and OS details
-- **Security** — Virus scanning
-- **MCP** — AI integration settings
-- **Sync** — Google Drive settings backup
-
-## Compatibility
-
-ThinkUtils is designed for IBM/Lenovo ThinkPad laptops running Linux.
-
-**Tested on:**
-- ThinkPad T480, T490, T14
-- ThinkPad X1 Carbon (various generations)
-- ThinkPad P-series workstations
-
-**Requirements:**
-- Linux kernel with thinkpad_acpi module
-- /proc/acpi/ibm/fan interface available
-
-## Troubleshooting
-
-### Fan control not working
-1. Verify thinkpad_acpi is loaded:
-   ```bash
-   lsmod | grep thinkpad_acpi
-   ```
-2. Check if fan control is enabled:
-   ```bash
-   cat /etc/modprobe.d/thinkpad_acpi.conf
-   ```
-3. Verify the file exists:
-   ```bash
-   ls -l /proc/acpi/ibm/fan
-   ```
-
-### Permission errors
-Click "Setup Permissions" in the app, or see [Permissions](docs/guide/permissions.md).
-
-### No temperature data
-Ensure lm-sensors is installed and configured:
-```bash
-sudo sensors-detect
-sensors
-```
-
-## Contributing
-
-Contributions are welcome! Areas for improvement:
-- Support for more ThinkPad models
-- UI/UX enhancements
-- Bug fixes and optimizations
-
-## License
-
-ThinkUtils is dual-licensed:
-
-- **LGPL v3** — For open source projects
-- **Commercial License** — For commercial/proprietary projects
-
-For commercial licensing inquiries, please contact: https://www.vietanh.dev/contact
-
-## Credits
-
-- Built with [Tauri](https://tauri.app/)
-- Icons from Lucide
-
-## Disclaimer
-
-ThinkUtils modifies system fan controls. While generally safe, use at your own risk. The authors are not responsible for any hardware damage that may occur from improper use.
-
-**Always monitor temperatures when using manual fan control.**
+### 🪟 Windows 10 / 11
+Download `thinkutils.exe` or the Windows installer from [**GitHub Releases**](https://github.com/TysonTranThai/ThinkUtils-Maintained-Upgraded/releases) and run directly.
 
 ---
 
-**Made with ❤️ for ThinkPad enthusiasts**
+## ⚙️ ThinkPad Hardware Setup
+
+To allow ThinkUtils to directly read and control your cooling fan hardware on Linux:
+
+1. Create or edit the `thinkpad_acpi` kernel module configuration:
+   ```bash
+   sudo nano /etc/modprobe.d/thinkpad_acpi.conf
+   ```
+
+2. Add this configuration directive:
+   ```ini
+   options thinkpad_acpi fan_control=1
+   ```
+
+3. Reload the module (or reboot your laptop):
+   ```bash
+   sudo modprobe -r thinkpad_acpi
+   sudo modprobe thinkpad_acpi
+   ```
+
+4. Verify that the fan interface is active:
+   ```bash
+   cat /proc/acpi/ibm/fan
+   ```
+
+---
+
+## 🛡️ PAM Security & Health CLI
+
+ThinkUtils includes an enterprise-grade PAM configuration analyzer and repair engine designed to prevent and recover from authentication lockout issues (such as malformed PAM extended control syntax):
+
+```bash
+# Audit PAM authentication configuration health
+thinkutils --check-pam
+
+# Safely sanitize, repair, and validate system PAM configurations
+thinkutils --repair-pam
+
+# Roll back PAM configuration to the latest verified automatic backup
+thinkutils --rollback-pam
+
+# Display CLI help
+thinkutils --help
+```
+
+---
+
+## 🤖 AI Integration (MCP Server)
+
+ThinkUtils embeds a native **Model Context Protocol (MCP)** server on `http://127.0.0.1:3000/sse`. This enables AI assistants (such as Claude Code, Claude Desktop, Cursor, or OpenCode) to inspect thermal sensors and adjust system parameters on your behalf.
+
+### Claude Desktop Configuration
+Add this to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "thinkutils": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sse", "http://127.0.0.1:3000/sse"]
+    }
+  }
+}
+```
+
+---
+
+## 🛠️ Building from Source
+
+### Prerequisites
+- **Rust** 1.70+ (`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`)
+- **Node.js** 22+ & `npm`
+- **Linux Packages**: `build-essential libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf`
+
+### Build Instructions
+```bash
+# 1. Clone repository
+git clone https://github.com/TysonTranThai/ThinkUtils-Maintained-Upgraded.git
+cd ThinkUtils-Maintained-Upgraded
+
+# 2. Install dependencies
+npm ci
+
+# 3. Launch in development mode
+npm run tauri dev
+
+# 4. Build production packages
+npm run tauri build
+```
+
+The resulting packages will be in `src-tauri/target/release/bundle/`.
+
+### Code Quality & Linting
+```bash
+npm run validate     # Runs ESLint, Stylelint, HTMLHint, and Prettier check
+cargo test           # Runs all 147+ Rust integration & safety test suites
+```
+
+---
+
+## 📐 Architecture
+
+```
+ThinkUtils/
+├── src/                          # Modern vanilla JS/CSS/HTML frontend
+│   ├── index.html                # App shell
+│   ├── styles/                   # Scoped modular stylesheets
+│   ├── js/                       # Modular ES6 controllers
+│   │   ├── app.js                # Lifecycle & navigation
+│   │   ├── fanCurve.js           # Canvas interactive curve engine
+│   │   └── views/                # Views (fan, battery, monitor, security, mcp)
+│   └── templates/                # Modular HTML view templates
+├── src-tauri/                    # Rust native backend
+│   ├── src/
+│   │   ├── fan_control.rs        # Manual fan speed & EC control
+│   │   ├── fan_curve.rs          # Background thermal curve supervisor & watchdog
+│   │   ├── battery.rs            # Charge thresholds & sysfs interfaces
+│   │   ├── performance.rs        # CPU governors, EPP, and Turbo Boost
+│   │   ├── monitor.rs            # Real-time resource telemetry
+│   │   ├── pam.rs                # PAM configuration validator, repair & rollback
+│   │   ├── biometrics.rs         # Fingerprint authentication management
+│   │   ├── security.rs           # ClamAV scanner integration
+│   │   └── mcp.rs                # Built-in Model Context Protocol server
+│   └── Cargo.toml
+├── .github/workflows/            # Continuous Integration & multi-platform releases
+└── docs/                         # Detailed VitePress documentation
+```
+
+---
+
+## 🤝 Contributing
+
+Contributions are warmly welcomed! Please feel free to submit a Pull Request or file an issue:
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Ensure tests pass (`npm run validate` and `cargo test`)
+4. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+5. Push to the branch (`git push origin feature/amazing-feature`)
+6. Open a Pull Request
+
+---
+
+## 📄 License & Disclaimer
+
+ThinkUtils is dual-licensed under the **GNU Lesser General Public License v3.0 (LGPL v3)** and commercial terms. See [LICENSE](./LICENSE) for details.
+
+> [!WARNING]
+> ThinkUtils controls hardware cooling and power parameters. While it includes safety watchdogs and conservative fallbacks, always monitor your machine's thermals when using manual fan overrides. The authors are not liable for hardware damage caused by improper usage.
+
+<div align="center">
+<sub>Designed with ❤️ for the global ThinkPad & Linux community.</sub>
+</div>
