@@ -1,4 +1,117 @@
 <div class="settings-container">
+  <!-- GNOME Top Bar Indicator Section -->
+  <div class="card settings-extension-card" id="card-gnome-extension">
+    <div class="card-header">
+      <div class="card-icon extension-icon">
+        <svg
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+          <line x1="8" y1="21" x2="16" y2="21" />
+          <line x1="12" y1="17" x2="12" y2="21" />
+          <line x1="2" y1="7" x2="22" y2="7" />
+        </svg>
+      </div>
+      <div class="card-header-content">
+        <div class="extension-title-row">
+          <h3>GNOME Top Bar Indicator</h3>
+          <span class="extension-badge badge-neutral" id="gnome-ext-badge">Checking...</span>
+        </div>
+        <p class="card-description">
+          Displays live CPU temperature, fan RPM, battery status, and quick fan controls directly in
+          the Linux system top panel next to your clock and system tray.
+        </p>
+      </div>
+    </div>
+
+    <div class="extension-details-grid">
+      <div class="info-item">
+        <span class="info-label">Desktop Environment</span>
+        <span class="info-value" id="gnome-ext-desktop">Detecting...</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Status</span>
+        <span class="info-value" id="gnome-ext-status-text">Detecting...</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Installation Path</span>
+        <span class="info-value mono-text" id="gnome-ext-path"
+          >~/.local/share/gnome-shell/extensions/thinkutils@tysontranthai.site</span
+        >
+      </div>
+    </div>
+
+    <div id="gnome-ext-restart-notice" class="extension-notice-banner" style="display: none">
+      <span class="notice-icon">ℹ️</span>
+      <span class="notice-text">
+        Extension is enabled! On GNOME Wayland, newly installed extensions appear after
+        <strong>logging out and logging back in</strong> (or restarting your laptop).
+      </span>
+    </div>
+
+    <div class="btn-group">
+      <button id="btn-toggle-gnome-ext" class="btn-primary">
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+        <span id="btn-toggle-gnome-ext-text">Enable Indicator</span>
+      </button>
+
+      <button
+        id="btn-reinstall-gnome-ext"
+        class="btn-secondary"
+        title="Reinstall or update the extension files to the latest version"
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+        </svg>
+        Reinstall Files
+      </button>
+
+      <button
+        id="btn-uninstall-gnome-ext"
+        class="btn-secondary btn-danger-action"
+        title="Disable and remove extension files"
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <polyline points="3 6 5 6 21 6" />
+          <path
+            d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+          />
+        </svg>
+        Uninstall
+      </button>
+    </div>
+
+    <div id="gnome-ext-action-message" class="settings-status-banner" style="display: none"></div>
+  </div>
+
   <!-- Backup & Restore Section -->
   <div class="card settings-backup-card">
     <div class="card-header">
@@ -161,6 +274,10 @@
           <div class="info-item">
             <span class="info-label">Minimize to Tray</span>
             <span class="info-value" id="cfg-minimize-tray">Enabled</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">GNOME Top Bar</span>
+            <span class="info-value" id="cfg-gnome-extension">--</span>
           </div>
         </div>
       </div>

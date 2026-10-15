@@ -3,6 +3,7 @@ mod battery;
 pub mod environment;
 pub mod fan_control;
 mod fan_curve;
+pub mod gnome_extension;
 pub mod hardware_root;
 mod mcp;
 mod monitor;
@@ -323,6 +324,11 @@ pub fn run() {
             mcp::get_mcp_status,
             mcp::start_mcp_server,
             mcp::stop_mcp_server,
+            // GNOME Top Panel Extension
+            gnome_extension::get_gnome_extension_status,
+            gnome_extension::enable_gnome_extension,
+            gnome_extension::install_gnome_extension,
+            gnome_extension::uninstall_gnome_extension,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
