@@ -1,5 +1,6 @@
 mod auth;
 mod battery;
+pub mod biometrics;
 pub mod environment;
 pub mod fan_control;
 mod fan_curve;
@@ -329,6 +330,15 @@ pub fn run() {
             gnome_extension::enable_gnome_extension,
             gnome_extension::install_gnome_extension,
             gnome_extension::uninstall_gnome_extension,
+            // Biometrics & Windows Hello
+            biometrics::get_biometric_overview,
+            biometrics::get_fingerprint_status,
+            biometrics::get_face_recognition_status,
+            biometrics::delete_fingerprint,
+            biometrics::install_fingerprint_packages,
+            biometrics::configure_howdy_camera,
+            biometrics::remove_face_model,
+            biometrics::clear_face_models,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

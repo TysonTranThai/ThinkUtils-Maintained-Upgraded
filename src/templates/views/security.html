@@ -1,57 +1,56 @@
 <div class="security-container">
-  <!-- ClamAV Status Card -->
-  <div class="card">
-    <div class="card-header">
-      <div class="card-icon security-icon">
-        <svg
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-        </svg>
-      </div>
-      <div class="security-header-info">
-        <h3>ClamAV Antivirus</h3>
-        <div class="security-status">
-          <span id="clamav-status-badge" class="badge badge-info">Checking...</span>
-          <span id="clamav-status-text" class="security-status-text">Loading...</span>
-        </div>
-      </div>
-    </div>
+  <!-- Sub-navigation tabs -->
+  <div class="security-tabs-nav">
+    <button class="security-tab-btn active" id="tab-btn-biometrics" data-tab="biometrics">
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path
+          d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 004.07 9"
+        />
+      </svg>
+      <span>Windows Hello & Biometrics</span>
+    </button>
+    <button class="security-tab-btn" id="tab-btn-antivirus" data-tab="antivirus">
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      </svg>
+      <span>ClamAV Antivirus</span>
+    </button>
+  </div>
 
-    <!-- Install Section -->
-    <div id="clamav-install-section" class="banner banner-info">
-      <div class="banner-icon">
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
+  <!-- Panel 1: Windows Hello & Biometrics -->
+  <div id="security-panel-biometrics" class="security-panel active">
+    <!-- Hardware Status Summary Header -->
+    <div class="card biometrics-summary-card">
+      <div class="biometrics-summary-header">
+        <div>
+          <h3>ThinkPad Biometric Authentication</h3>
+          <p class="card-description">
+            Seamlessly unlock your ThinkPad with Windows Hello-compatible hardware: Goodix /
+            Synaptics fingerprint readers and infrared facial recognition.
+          </p>
+        </div>
+        <button
+          id="btn-refresh-biometrics"
+          class="btn-secondary btn-small"
+          title="Refresh hardware and biometric status"
         >
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="16" x2="12" y2="12" />
-          <line x1="12" y1="8" x2="12.01" y2="8" />
-        </svg>
-      </div>
-      <div class="banner-content">
-        <h4>ClamAV Not Installed</h4>
-        <p>
-          ClamAV is an open-source antivirus engine for detecting trojans, viruses, malware and
-          other malicious threats.
-        </p>
-      </div>
-      <div class="btn-group">
-        <button id="btn-install-clamav" class="btn-primary">Install ClamAV</button>
-        <button id="btn-refresh-status" class="btn-secondary">
           <svg
-            width="16"
-            height="16"
+            width="14"
+            height="14"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -65,10 +64,451 @@
         </button>
       </div>
 
-      <!-- Install Logs Section -->
-      <div id="install-logs-section" class="install-logs-section" style="display: none">
-        <div class="install-logs-header">
-          <div class="install-logs-title">
+      <div class="biometrics-status-chips">
+        <div class="bio-chip" id="chip-fingerprint-hw">
+          <span class="chip-icon">👆</span>
+          <div class="chip-info">
+            <span class="chip-title">Fingerprint Sensor</span>
+            <span class="chip-desc" id="chip-fingerprint-desc">Scanning...</span>
+          </div>
+          <span class="chip-badge badge-neutral" id="chip-fingerprint-badge">--</span>
+        </div>
+
+        <div class="bio-chip" id="chip-camera-hw">
+          <span class="chip-icon">📷</span>
+          <div class="chip-info">
+            <span class="chip-title">Infrared (IR) Camera</span>
+            <span class="chip-desc" id="chip-camera-desc">Scanning...</span>
+          </div>
+          <span class="chip-badge badge-neutral" id="chip-camera-badge">--</span>
+        </div>
+
+        <div class="bio-chip" id="chip-pam-hw">
+          <span class="chip-icon">🛡️</span>
+          <div class="chip-info">
+            <span class="chip-title">PAM Authentication</span>
+            <span class="chip-desc" id="chip-pam-desc">Checking...</span>
+          </div>
+          <span class="chip-badge badge-neutral" id="chip-pam-badge">--</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fingerprint Reader Card -->
+    <div class="card biometrics-feature-card" id="card-fingerprint">
+      <div class="card-header">
+        <div class="card-icon bio-icon-fp">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 004.07 9"
+            />
+          </svg>
+        </div>
+        <div class="card-header-content">
+          <div class="bio-title-row">
+            <h3>Fingerprint Reader</h3>
+            <span class="extension-badge badge-neutral" id="fp-service-badge">Checking...</span>
+          </div>
+          <p class="card-description" id="fp-device-description">
+            Enrolling your fingerprint enables quick, passwordless login, lock-screen unlock, and
+            sudo elevation.
+          </p>
+        </div>
+      </div>
+
+      <!-- Enrolled Fingers List -->
+      <div class="bio-enrolled-section">
+        <div class="bio-section-title">
+          <h4>Enrolled Fingerprints</h4>
+          <span class="bio-count" id="fp-enrolled-count">0 fingers</span>
+        </div>
+        <div id="fp-enrolled-list" class="bio-enrolled-chips">
+          <div class="bio-empty-placeholder">
+            No fingerprints registered yet. Select a finger below to enroll.
+          </div>
+        </div>
+      </div>
+
+      <!-- Enrollment & Management Controls -->
+      <div class="bio-controls-section">
+        <div class="bio-input-row">
+          <div class="bio-field-group">
+            <label for="select-enroll-finger">Finger to Enroll</label>
+            <select id="select-enroll-finger" class="bio-select">
+              <option value="right-index-finger">Right Index Finger (Recommended)</option>
+              <option value="right-thumb">Right Thumb</option>
+              <option value="right-middle-finger">Right Middle Finger</option>
+              <option value="left-index-finger">Left Index Finger</option>
+              <option value="left-thumb">Left Thumb</option>
+              <option value="left-middle-finger">Left Middle Finger</option>
+            </select>
+          </div>
+
+          <div class="bio-btn-row">
+            <button id="btn-enroll-finger" class="btn-primary">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              Enroll Finger
+            </button>
+            <button
+              id="btn-verify-finger"
+              class="btn-secondary"
+              title="Verify enrolled fingerprint"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Verify
+            </button>
+            <button
+              id="btn-clear-all-fingers"
+              class="btn-secondary btn-danger-action"
+              title="Delete all enrolled fingerprints"
+            >
+              Clear All
+            </button>
+            <button id="btn-install-fprintd" class="btn-primary" style="display: none">
+              Install fprintd
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Enrollment / Action Status Banner -->
+      <div id="fp-action-banner" class="settings-status-banner" style="display: none"></div>
+    </div>
+
+    <!-- Facial Recognition Card (IR Camera / Windows Hello) -->
+    <div class="card biometrics-feature-card" id="card-facial-recognition">
+      <div class="card-header">
+        <div class="card-icon bio-icon-face">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9 9h.01M15 9h.01M8 15s1.5 2 4 2 4-2 4-2" />
+            <path
+              d="M4.93 4.93l4.24 4.24M14.83 9.17l4.24-4.24M19.07 19.07l-4.24-4.24M9.17 14.83l-4.24 4.24"
+            />
+          </svg>
+        </div>
+        <div class="card-header-content">
+          <div class="bio-title-row">
+            <h3>Windows Hello Facial Recognition</h3>
+            <span class="extension-badge badge-neutral" id="face-engine-badge">Checking...</span>
+          </div>
+          <p class="card-description" id="face-device-description">
+            Uses your ThinkPad's dedicated Infrared (IR) camera to authenticate instantly when you
+            look at the screen.
+          </p>
+        </div>
+      </div>
+
+      <!-- Camera Configuration -->
+      <div class="bio-camera-config">
+        <div class="bio-section-title">
+          <h4>Camera Sensor Configuration</h4>
+          <span class="bio-hint" id="face-camera-hint">Select the infrared (IR) sensor</span>
+        </div>
+        <div class="bio-input-row">
+          <div class="bio-field-group" style="flex: 1">
+            <select id="select-ir-camera" class="bio-select">
+              <option value="">Scanning cameras...</option>
+            </select>
+          </div>
+          <button id="btn-set-camera" class="btn-secondary">Set as IR Camera</button>
+        </div>
+      </div>
+
+      <!-- Enrolled Face Models -->
+      <div class="bio-enrolled-section">
+        <div class="bio-section-title">
+          <h4>Enrolled Face Profiles</h4>
+          <span class="bio-count" id="face-models-count">0 profiles</span>
+        </div>
+        <div id="face-models-list" class="bio-enrolled-chips">
+          <div class="bio-empty-placeholder">
+            No face models registered yet. Add a profile below.
+          </div>
+        </div>
+      </div>
+
+      <!-- Face Recognition Controls -->
+      <div class="bio-controls-section">
+        <div class="bio-input-row">
+          <div class="bio-field-group">
+            <label for="input-face-label">Profile Label</label>
+            <input
+              type="text"
+              id="input-face-label"
+              class="bio-text-input"
+              placeholder="e.g. Default, With Glasses, Low Light"
+            />
+          </div>
+
+          <div class="bio-btn-row">
+            <button id="btn-add-face-model" class="btn-primary">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              Add Face Profile
+            </button>
+            <button
+              id="btn-test-face"
+              class="btn-secondary"
+              title="Test face recognition via camera"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Test Recognition
+            </button>
+            <button
+              id="btn-clear-face-models"
+              class="btn-secondary btn-danger-action"
+              title="Clear all enrolled face models"
+            >
+              Clear All
+            </button>
+            <button id="btn-install-howdy" class="btn-primary" style="display: none">
+              Install Howdy
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Action Status Banner -->
+      <div id="face-action-banner" class="settings-status-banner" style="display: none"></div>
+    </div>
+  </div>
+
+  <!-- Panel 2: ClamAV Antivirus -->
+  <div id="security-panel-antivirus" class="security-panel" style="display: none">
+    <!-- ClamAV Status Card -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon security-icon">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+        </div>
+        <div class="security-header-info">
+          <h3>ClamAV Antivirus</h3>
+          <div class="security-status">
+            <span id="clamav-status-badge" class="badge badge-info">Checking...</span>
+            <span id="clamav-status-text" class="security-status-text">Loading...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Install Section -->
+      <div id="clamav-install-section" class="banner banner-info">
+        <div class="banner-icon">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="16" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12.01" y2="8" />
+          </svg>
+        </div>
+        <div class="banner-content">
+          <h4>ClamAV Not Installed</h4>
+          <p>
+            ClamAV is an open-source antivirus engine for detecting trojans, viruses, malware and
+            other malicious threats.
+          </p>
+        </div>
+        <div class="btn-group">
+          <button id="btn-install-clamav" class="btn-primary">Install ClamAV</button>
+          <button id="btn-refresh-status" class="btn-secondary">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"
+              />
+            </svg>
+            Refresh
+          </button>
+        </div>
+
+        <!-- Install Logs Section -->
+        <div id="install-logs-section" class="install-logs-section" style="display: none">
+          <div class="install-logs-header">
+            <div class="install-logs-title">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
+              <span id="install-logs-title-text">Installation Logs</span>
+              <span
+                id="install-logs-spinner"
+                class="install-logs-spinner"
+                style="display: none"
+              ></span>
+            </div>
+            <button id="btn-toggle-install-logs" class="install-logs-toggle">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+          </div>
+          <div id="install-logs-content" class="install-logs-content">
+            <div id="install-logs-output" class="install-logs-output"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Database Info -->
+      <div id="security-controls-section" style="display: none">
+        <div class="info-list">
+          <div class="info-item">
+            <span class="info-label">Database Version</span>
+            <span id="db-version" class="info-value">--</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Last Update</span>
+            <span id="db-last-update" class="info-value">--</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Virus Definitions</span>
+            <span id="db-definitions" class="info-value">--</span>
+          </div>
+        </div>
+
+        <div class="btn-group" style="margin-top: 16px">
+          <button id="btn-update-definitions" class="btn-secondary">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"
+              />
+            </svg>
+            Update Definitions
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scan Controls -->
+    <div class="card">
+      <div class="card-header">
+        <h3>Scan Options</h3>
+      </div>
+
+      <div class="scan-options">
+        <div class="scan-option">
+          <div class="scan-option-info">
+            <h4>Quick Scan</h4>
+            <p>Scan common directories (Downloads, Documents, Desktop)</p>
+          </div>
+          <button id="btn-quick-scan" class="btn-primary">Quick Scan</button>
+        </div>
+
+        <div class="scan-option">
+          <div class="scan-option-info">
+            <h4>Custom Scan</h4>
+            <p>Scan a specific file or directory</p>
+          </div>
+          <div class="scan-path-input-group">
+            <input
+              type="text"
+              id="scan-path-input"
+              class="scan-path-input"
+              placeholder="/path/to/scan"
+            />
+            <button id="btn-browse-path" class="btn-secondary btn-small">Browse</button>
+            <button id="btn-custom-scan" class="btn-primary">Scan Path</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scan Logs Section -->
+      <div id="scan-logs-section" class="scan-logs-section" style="display: none">
+        <div class="scan-logs-header">
+          <div class="scan-logs-title">
             <svg
               width="16"
               height="16"
@@ -83,14 +523,10 @@
               <line x1="16" y1="17" x2="8" y2="17" />
               <polyline points="10 9 9 9 8 9" />
             </svg>
-            <span id="install-logs-title-text">Installation Logs</span>
-            <span
-              id="install-logs-spinner"
-              class="install-logs-spinner"
-              style="display: none"
-            ></span>
+            <span id="scan-logs-title-text">Scan Logs</span>
+            <span id="scan-logs-spinner" class="scan-logs-spinner" style="display: none"></span>
           </div>
-          <button id="btn-toggle-install-logs" class="install-logs-toggle">
+          <button id="btn-toggle-scan-logs" class="scan-logs-toggle">
             <svg
               width="16"
               height="16"
@@ -103,146 +539,37 @@
             </svg>
           </button>
         </div>
-        <div id="install-logs-content" class="install-logs-content">
-          <div id="install-logs-output" class="install-logs-output"></div>
+        <div id="scan-logs-content" class="scan-logs-content">
+          <div id="scan-logs-output" class="scan-logs-output"></div>
         </div>
       </div>
     </div>
 
-    <!-- Database Info -->
-    <div id="security-controls-section" style="display: none">
-      <div class="info-list">
-        <div class="info-item">
-          <span class="info-label">Database Version</span>
-          <span id="db-version" class="info-value">--</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">Last Update</span>
-          <span id="db-last-update" class="info-value">--</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">Virus Definitions</span>
-          <span id="db-definitions" class="info-value">--</span>
-        </div>
+    <!-- Scan Results -->
+    <div id="scan-results" class="card" style="display: none">
+      <div class="card-header">
+        <h3>Scan Results</h3>
+        <span id="scan-threat-status" class="badge badge-success">Clean</span>
       </div>
 
-      <div class="btn-group" style="margin-top: 16px">
-        <button id="btn-update-definitions" class="btn-secondary">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path
-              d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"
-            />
-          </svg>
-          Update Definitions
-        </button>
+      <div id="scan-results-content">
+        <div class="scan-summary">
+          <div class="scan-summary-item">
+            <span class="summary-label">Files Scanned</span>
+            <span id="scan-files-count" class="summary-value">0</span>
+          </div>
+          <div class="scan-summary-item">
+            <span class="summary-label">Threats Found</span>
+            <span id="scan-threats-count" class="summary-value">0</span>
+          </div>
+          <div class="scan-summary-item">
+            <span class="summary-label">Scan Time</span>
+            <span id="scan-time" class="summary-value">0s</span>
+          </div>
+        </div>
+
+        <div id="threats-list" class="threats-list"></div>
       </div>
-    </div>
-  </div>
-
-  <!-- Scan Controls -->
-  <div class="card">
-    <div class="card-header">
-      <h3>Scan Options</h3>
-    </div>
-
-    <div class="scan-options">
-      <div class="scan-option">
-        <div class="scan-option-info">
-          <h4>Quick Scan</h4>
-          <p>Scan common directories (Downloads, Documents, Desktop)</p>
-        </div>
-        <button id="btn-quick-scan" class="btn-primary">Quick Scan</button>
-      </div>
-
-      <div class="scan-option">
-        <div class="scan-option-info">
-          <h4>Custom Scan</h4>
-          <p>Scan a specific file or directory</p>
-        </div>
-        <div class="scan-path-input-group">
-          <input
-            type="text"
-            id="scan-path-input"
-            class="scan-path-input"
-            placeholder="/path/to/scan"
-          />
-          <button id="btn-browse-path" class="btn-secondary btn-small">Browse</button>
-          <button id="btn-custom-scan" class="btn-primary">Scan Path</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Scan Logs Section -->
-    <div id="scan-logs-section" class="scan-logs-section" style="display: none">
-      <div class="scan-logs-header">
-        <div class="scan-logs-title">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="16" y1="13" x2="8" y2="13" />
-            <line x1="16" y1="17" x2="8" y2="17" />
-            <polyline points="10 9 9 9 8 9" />
-          </svg>
-          <span id="scan-logs-title-text">Scan Logs</span>
-          <span id="scan-logs-spinner" class="scan-logs-spinner" style="display: none"></span>
-        </div>
-        <button id="btn-toggle-scan-logs" class="scan-logs-toggle">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-          >
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </button>
-      </div>
-      <div id="scan-logs-content" class="scan-logs-content">
-        <div id="scan-logs-output" class="scan-logs-output"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Scan Results -->
-  <div id="scan-results" class="card" style="display: none">
-    <div class="card-header">
-      <h3>Scan Results</h3>
-      <span id="scan-threat-status" class="badge badge-success">Clean</span>
-    </div>
-
-    <div id="scan-results-content">
-      <div class="scan-summary">
-        <div class="scan-summary-item">
-          <span class="summary-label">Files Scanned</span>
-          <span id="scan-files-count" class="summary-value">0</span>
-        </div>
-        <div class="scan-summary-item">
-          <span class="summary-label">Threats Found</span>
-          <span id="scan-threats-count" class="summary-value">0</span>
-        </div>
-        <div class="scan-summary-item">
-          <span class="summary-label">Scan Time</span>
-          <span id="scan-time" class="summary-value">0s</span>
-        </div>
-      </div>
-
-      <div id="threats-list" class="threats-list"></div>
     </div>
   </div>
 </div>

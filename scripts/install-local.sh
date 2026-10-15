@@ -25,8 +25,7 @@ mkdir -p "$HOME/.local/bin" \
          "$HOME/.local/share/icons/hicolor/scalable/apps"
 
 # 1. Install application binary
-cp "src-tauri/target/release/thinkutils" "$HOME/.local/bin/thinkutils"
-chmod +x "$HOME/.local/bin/thinkutils"
+install -m 755 "src-tauri/target/release/thinkutils" "$HOME/.local/bin/thinkutils"
 echo "✓ Installed executable: $HOME/.local/bin/thinkutils"
 
 # 2. Install desktop launcher

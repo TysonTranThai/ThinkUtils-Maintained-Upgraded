@@ -787,3 +787,263 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Biometrics & Windows Hello Sub-Navigation */
+.security-tabs-nav {
+  display: flex;
+  gap: 10px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+}
+
+.security-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.security-tab-btn:hover:not(.active) {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-color: var(--border-light);
+}
+
+.security-tab-btn.active {
+  background: var(--red-primary);
+  color: #fff;
+  border-color: var(--red-primary);
+}
+
+.security-tab-btn svg {
+  flex-shrink: 0;
+}
+
+.security-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Biometrics Summary Card */
+.biometrics-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.biometrics-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.biometrics-status-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.bio-chip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.chip-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.chip-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.chip-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.chip-desc {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.chip-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Biometrics Feature Cards */
+.biometrics-feature-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bio-icon-fp {
+  background: rgb(59 130 246 / 15%);
+  color: #3b82f6;
+}
+
+.bio-icon-face {
+  background: rgb(168 85 247 / 15%);
+  color: #a855f7;
+}
+
+.bio-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.bio-enrolled-section,
+.bio-camera-config {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bio-section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bio-section-title h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.bio-count,
+.bio-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.bio-enrolled-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bio-finger-item,
+.bio-face-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.bio-finger-item .btn-del-finger,
+.bio-face-item .btn-del-face {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+  transition: color 0.15s ease;
+}
+
+.bio-finger-item .btn-del-finger:hover,
+.bio-face-item .btn-del-face:hover {
+  color: #ef4444;
+}
+
+.bio-empty-placeholder {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-style: italic;
+  padding: 6px 0;
+}
+
+.bio-controls-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bio-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.bio-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.bio-field-group label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.bio-select,
+.bio-text-input {
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.bio-select:focus,
+.bio-text-input:focus {
+  outline: none;
+  border-color: var(--red-primary);
+}
+
+.bio-btn-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
