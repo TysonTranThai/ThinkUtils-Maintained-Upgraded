@@ -3,11 +3,11 @@ import { withMermaid } from 'vitepress-plugin-mermaid';
 
 export default withMermaid(
   defineConfig({
-    base: '/ThinkUtils-Maintained-Upgraded/',
+    base: '/',
     title: 'ThinkUtils',
     description:
       'A powerful, native desktop application that unlocks the full potential of your ThinkPad on Linux.',
-    head: [['link', { rel: 'icon', href: '/ThinkUtils-Maintained-Upgraded/favicon.ico' }]],
+    head: [['link', { rel: 'icon', href: '/favicon.ico' }]],
     themeConfig: {
       logo: '/logo.svg',
       nav: [

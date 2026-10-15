@@ -57,7 +57,7 @@ function setupAboutLinks() {
       e.preventDefault();
       try {
         await invoke('open_url', {
-          url: 'https://tysontranthai.github.io/ThinkUtils-Maintained-Upgraded/'
+          url: 'https://thinkutils.tysontranthai.site'
         });
       } catch (err) {
         console.error('[About] Failed to open docs link:', err);

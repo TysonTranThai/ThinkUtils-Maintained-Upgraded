@@ -5,7 +5,7 @@ A powerful, native desktop application that unlocks the full potential of your T
 ![ThinkUtils](https://img.shields.io/badge/platform-Linux-blue)
 ![License](https://img.shields.io/badge/license-LGPL%20v3-green)
 ![Tauri](https://img.shields.io/badge/Built%20with-Tauri-orange)
-[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://tysontranthai.github.io/ThinkUtils-Maintained-Upgraded/)
+[![Documentation](https://img.shields.io/badge/docs-thinkutils.tysontranthai.site-blue)](https://thinkutils.tysontranthai.site)
 
 ## Screenshots
 
@@ -310,7 +310,7 @@ ThinkUtils/
 
 ### Documentation
 
-Full documentation at [tysontranthai.github.io/ThinkUtils-Maintained-Upgraded](https://tysontranthai.github.io/ThinkUtils-Maintained-Upgraded/), or browse the `docs/` directory:
+Full documentation at [thinkutils.tysontranthai.site](https://thinkutils.tysontranthai.site), or browse the `docs/` directory:
 - [Getting Started](docs/guide/getting-started.md) — Setup and first run
 - [Installation](docs/guide/installation.md) — Install methods
 - [Permissions](docs/guide/permissions.md) — How permissions work
