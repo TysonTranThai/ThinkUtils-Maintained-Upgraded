@@ -181,11 +181,13 @@ function updateBiometricsUI(data) {
   }
 
   if (selectCamera && face.cameras.length > 0) {
+    const activeDev =
+      face.configured_device ||
+      face.recommended_camera ||
+      (face.cameras[0] && face.cameras[0].path);
     selectCamera.innerHTML = face.cameras
       .map((cam) => {
-        const isSelected =
-          (face.configured_device && face.configured_device === cam.path) ||
-          (!face.configured_device && cam.is_infrared);
+        const isSelected = cam.path === activeDev;
         const tag = cam.is_infrared ? ' [Infrared - Recommended]' : ' [Color RGB]';
         return `<option value="${escapeHtml(cam.path)}"${isSelected ? ' selected' : ''}>${escapeHtml(cam.path)} — ${escapeHtml(cam.name)}${tag}</option>`;
       })
@@ -914,11 +916,11 @@ async function handleAddFaceModel() {
     } else {
       setFaceIdState('failed');
       if (stepEl) {
-        stepEl.textContent = 'Face capture was not completed.';
+        stepEl.textContent = response.message || 'Face capture was not completed.';
       }
     }
     showNotification(response.message, response.success ? 'success' : 'error');
-    if (input) {
+    if (response.success && input) {
       input.value = '';
     }
     await loadBiometricsStatus();
@@ -1055,9 +1057,14 @@ async function handleClearFaceModels() {
         : 'settings-status-banner error';
       banner.textContent = response.message;
     }
-    showNotification('All face models cleared', 'success');
+    showNotification(response.message, response.success ? 'success' : 'error');
     await loadBiometricsStatus();
   } catch (err) {
+    if (banner) {
+      banner.style.display = 'block';
+      banner.className = 'settings-status-banner error';
+      banner.textContent = `Failed to clear face models: ${err}`;
+    }
     showNotification(`Failed to clear face models: ${err}`, 'error');
   }
 }

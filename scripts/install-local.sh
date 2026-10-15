@@ -51,6 +51,15 @@ gtk-update-icon-cache "$HOME/.local/share/icons/hicolor/" 2>/dev/null || true
 if [ -f "/lib/security/howdy/cli.py" ] || [ -f "/usr/lib/security/howdy/cli.py" ]; then
     cat << 'EOF' > "$HOME/.local/bin/howdy"
 #!/bin/sh
+if [ -z "$SUDO_USER" ] || [ "$SUDO_USER" = "root" ]; then
+    if [ -n "$USER" ] && [ "$USER" != "root" ]; then
+        export SUDO_USER="$USER"
+    elif [ -n "$PKEXEC_UID" ]; then
+        export SUDO_USER=$(id -un "$PKEXEC_UID" 2>/dev/null)
+    else
+        export SUDO_USER=$(logname 2>/dev/null || who | awk '{print $1}' | head -n 1)
+    fi
+fi
 exec /usr/bin/python3 /lib/security/howdy/cli.py "$@"
 EOF
     chmod 755 "$HOME/.local/bin/howdy"

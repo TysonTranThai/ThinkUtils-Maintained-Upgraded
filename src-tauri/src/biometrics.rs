@@ -240,6 +240,14 @@ pub fn detect_cameras() -> (Vec<CameraDevice>, Option<String>, bool) {
 
             for path in entries_vec {
                 if let Some(fname) = path.file_name().and_then(|s| s.to_str()) {
+                    // Filter out metadata streams (e.g. index 1); only index 0 devices support video capture
+                    let index_file = path.join("index");
+                    if let Ok(idx_str) = fs::read_to_string(&index_file) {
+                        if idx_str.trim() != "0" {
+                            continue;
+                        }
+                    }
+
                     let name_file = path.join("name");
                     let name = fs::read_to_string(&name_file)
                         .unwrap_or_else(|_| fname.to_string())
@@ -463,6 +471,11 @@ fn get_current_login_user() -> String {
 
 fn build_howdy_bash_command(subcommand: &str) -> String {
     let user = get_current_login_user();
+    let display = std::env::var("DISPLAY").unwrap_or_else(|_| ":0".to_string());
+    let wayland = std::env::var("WAYLAND_DISPLAY").unwrap_or_else(|_| "wayland-0".to_string());
+    let xauth = std::env::var("XAUTHORITY").unwrap_or_else(|_| format!("/home/{}/.Xauthority", user));
+    let xdg_runtime = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/run/user/1000".to_string());
+
     let user_arg = if user != "root" && !user.is_empty() {
         format!("-U '{}'", user)
     } else {
@@ -471,15 +484,34 @@ fn build_howdy_bash_command(subcommand: &str) -> String {
 
     format!(
         "\
-if [ ! -x /usr/bin/howdy ]; then
+export USER='{user}'
+export SUDO_USER='{user}'
+export LOGNAME='{user}'
+export DISPLAY='{display}'
+export WAYLAND_DISPLAY='{wayland}'
+export XAUTHORITY='{xauth}'
+export XDG_RUNTIME_DIR='{xdg_runtime}'
+
+if [ ! -x /usr/bin/howdy ] || ! grep -q 'SUDO_USER' /usr/bin/howdy 2>/dev/null; then
   cat << 'EOF' > /usr/bin/howdy
 #!/bin/sh
+if [ -z \"$SUDO_USER\" ] || [ \"$SUDO_USER\" = \"root\" ]; then
+  if [ -n \"$USER\" ] && [ \"$USER\" != \"root\" ]; then
+    export SUDO_USER=\"$USER\"
+  elif [ -n \"$PKEXEC_UID\" ]; then
+    export SUDO_USER=$(id -un \"$PKEXEC_UID\" 2>/dev/null)
+  else
+    export SUDO_USER=$(logname 2>/dev/null || who | awk '{{print $1}}' | head -n 1)
+  fi
+fi
 exec /usr/bin/python3 /lib/security/howdy/cli.py \"$@\"
 EOF
   chmod 755 /usr/bin/howdy 2>/dev/null || true
   ln -sf /usr/bin/howdy /usr/local/bin/howdy 2>/dev/null || true
 fi
 chmod 755 /lib/security/howdy/cli.py 2>/dev/null || true
+mkdir -p /lib/security/howdy/models 2>/dev/null || true
+chmod 755 /lib/security/howdy/models 2>/dev/null || true
 if [ ! -f /lib/security/howdy/dlib-data/shape_predictor_5_face_landmarks.dat ]; then
   if [ -x /lib/security/howdy/dlib-data/install.sh ]; then
     (cd /lib/security/howdy/dlib-data && ./install.sh) 2>/dev/null || true
@@ -488,6 +520,11 @@ fi
 /usr/bin/python3 -c 'import dlib' 2>/dev/null || /usr/bin/python3 -m pip install --break-system-packages dlib 2>/dev/null || true
 /usr/bin/howdy {user_arg} {subcmd}
 ",
+        user = user,
+        display = display,
+        wayland = wayland,
+        xauth = xauth,
+        xdg_runtime = xdg_runtime,
         user_arg = user_arg,
         subcmd = subcommand
     )
@@ -1203,6 +1240,15 @@ fi
 echo '=== [4/5] Creating Howdy CLI wrapper and downloading neural models ==='
 cat << 'EOF' > /usr/bin/howdy
 #!/bin/sh
+if [ -z \"$SUDO_USER\" ] || [ \"$SUDO_USER\" = \"root\" ]; then
+  if [ -n \"$USER\" ] && [ \"$USER\" != \"root\" ]; then
+    export SUDO_USER=\"$USER\"
+  elif [ -n \"$PKEXEC_UID\" ]; then
+    export SUDO_USER=$(id -un \"$PKEXEC_UID\" 2>/dev/null)
+  else
+    export SUDO_USER=$(logname 2>/dev/null || who | awk '{{print $1}}' | head -n 1)
+  fi
+fi
 exec /usr/bin/python3 /lib/security/howdy/cli.py \"$@\"
 EOF
 chmod 755 /usr/bin/howdy /lib/security/howdy/cli.py 2>/dev/null || true
@@ -1360,24 +1406,46 @@ pub async fn add_face_model(
         label.replace(|c: char| !c.is_alphanumeric() && c != '_' && c != '-', "")
     };
 
-    let cam_script = if let Some(ref cam) = camera_device {
-        if !cam.is_empty() && cam.starts_with("/dev/video") {
-            format!(
-                "sed -i 's|^device_path = .*|device_path = {}|' /etc/howdy/config.ini 2>/dev/null; \
-                 sed -i 's|^device_path = .*|device_path = {}|' /lib/security/howdy/config.ini 2>/dev/null;\n",
-                cam, cam
-            )
-        } else {
-            String::new()
-        }
-    } else {
-        String::new()
-    };
+    let user = get_current_login_user();
 
+    // Determine target camera: use provided if valid, or auto-detect recommended IR camera
+    let cam = camera_device
+        .filter(|c| !c.trim().is_empty() && c.starts_with("/dev/video"))
+        .unwrap_or_else(|| {
+            let (_, rec, _) = detect_cameras();
+            rec.unwrap_or_else(|| "/dev/video2".to_string())
+        });
+
+    let howdy_add = build_howdy_bash_command("add -y");
     let full_script = format!(
-        "{}{}",
-        cam_script,
-        build_howdy_bash_command(&format!("add '{}' -y", clean_label))
+        "\
+sed -i 's|^device_path = .*|device_path = {cam}|' /etc/howdy/config.ini 2>/dev/null || true
+sed -i 's|^device_path = .*|device_path = {cam}|' /lib/security/howdy/config.ini 2>/dev/null || true
+{howdy_add}
+STATUS=$?
+if [ $STATUS -eq 0 ]; then
+  /usr/bin/python3 -c \"
+import json, os
+for p in ['/lib/security/howdy/models/{user}.dat', '/etc/howdy/models/{user}.dat']:
+    if os.path.exists(p):
+        try:
+            with open(p, 'r') as f: data = json.load(f)
+            if data and isinstance(data, list) and len(data) > 0:
+                data[-1]['label'] = '{clean_label}'
+                with open(p, 'w') as f: json.dump(data, f)
+                os.chmod(p, 0o644)
+        except Exception:
+            pass
+\"
+  chmod 755 /lib/security/howdy/models 2>/dev/null || true
+  chmod 644 /lib/security/howdy/models/*.dat 2>/dev/null || true
+fi
+exit $STATUS
+",
+        cam = cam,
+        howdy_add = howdy_add,
+        user = user,
+        clean_label = clean_label
     );
 
     let output = Command::new("pkexec")
@@ -1388,7 +1456,10 @@ pub async fn add_face_model(
         Ok(out) => {
             let stdout = String::from_utf8_lossy(&out.stdout).to_string();
             let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-            let success = out.status.success();
+            let success = out.status.success()
+                || stdout.contains("Added a new model")
+                || stdout.contains("Face model")
+                || stdout.contains("Model #");
 
             BiometricActionResponse {
                 success,
@@ -1433,15 +1504,24 @@ pub fn test_face_model() -> BiometricActionResponse {
         Ok(out) => {
             let stdout = String::from_utf8_lossy(&out.stdout).to_string();
             let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-            let success = out.status.success();
+            let success = out.status.success()
+                || stdout.contains("Closing window")
+                || stderr.contains("Closing window");
 
             BiometricActionResponse {
                 success,
                 message: if success {
-                    "Face recognition test passed".to_string()
+                    "Face recognition test completed".to_string()
                 } else {
                     let err_msg = if !stderr.trim().is_empty() {
                         stderr.trim().to_string()
+                    } else if !stdout.trim().is_empty() {
+                        stdout
+                            .lines()
+                            .last()
+                            .unwrap_or("Test ended or cancelled")
+                            .trim()
+                            .to_string()
                     } else {
                         "Test ended or cancelled".to_string()
                     };
@@ -1502,16 +1582,35 @@ pub fn remove_face_model(id: String) -> BiometricActionResponse {
 
 #[tauri::command]
 pub fn clear_face_models() -> BiometricActionResponse {
-    let script = build_howdy_bash_command("clear -y");
+    let user = get_current_login_user();
+    let howdy_clear = build_howdy_bash_command("clear -y");
+    let full_script = format!(
+        "\
+{howdy_clear}
+rm -f /lib/security/howdy/models/{user}.dat /etc/howdy/models/{user}.dat 2>/dev/null || true
+",
+        howdy_clear = howdy_clear,
+        user = user
+    );
+
     let output = Command::new("pkexec")
-        .args(["bash", "-c", &script])
+        .args(["bash", "-c", &full_script])
         .output();
 
     match output {
         Ok(out) => {
             let stdout = String::from_utf8_lossy(&out.stdout).to_string();
             let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-            if out.status.success() {
+            let lower_out = stdout.to_lowercase();
+            let lower_err = stderr.to_lowercase();
+
+            let success = out.status.success()
+                || lower_out.contains("no models")
+                || lower_out.contains("cleared")
+                || lower_err.contains("no models")
+                || lower_err.contains("cleared");
+
+            if success {
                 BiometricActionResponse {
                     success: true,
                     message: "All face models cleared".to_string(),
@@ -1602,5 +1701,13 @@ mod tests {
         let install_json = serde_json::to_string(&install).unwrap();
         assert!(install_json.contains("\"fingerprint\""));
         assert!(install_json.contains("\"percent\":85"));
+    }
+
+    #[test]
+    fn build_howdy_bash_command_exports_sudo_user() {
+        let cmd = build_howdy_bash_command("test");
+        assert!(cmd.contains("export SUDO_USER="));
+        assert!(cmd.contains("export DISPLAY="));
+        assert!(cmd.contains("/usr/bin/howdy"));
     }
 }
