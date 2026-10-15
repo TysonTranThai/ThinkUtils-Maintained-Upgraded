@@ -196,6 +196,45 @@
         </div>
       </div>
 
+      <!-- Interactive Fingerprint Progress Box (Enrollment & Verification) -->
+      <div id="fp-progress-box" class="bio-progress-box" style="display: none">
+        <div class="bio-progress-header">
+          <div class="bio-progress-title-row">
+            <span class="bio-pulse-dot" id="fp-progress-dot"></span>
+            <span class="bio-progress-title" id="fp-progress-title">Touch Fingerprint Sensor</span>
+          </div>
+          <span class="bio-progress-percent" id="fp-progress-percent">0%</span>
+        </div>
+        <div class="bio-progress-bar-container">
+          <div class="bio-progress-bar-fill" id="fp-progress-bar-fill" style="width: 0%"></div>
+        </div>
+        <div class="bio-progress-footer">
+          <span class="bio-progress-step" id="fp-progress-step">Initializing sensor...</span>
+          <button id="btn-cancel-fp" class="btn-secondary btn-tiny">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Fingerprint Package Installer Box (Streaming apt progress & logs) -->
+      <div id="fp-install-box" class="bio-install-box" style="display: none">
+        <div class="bio-install-header">
+          <div class="bio-install-status-row">
+            <span class="install-logs-spinner" id="fp-install-spinner"></span>
+            <span class="bio-install-step" id="fp-install-step"
+              >Preparing fprintd installation...</span
+            >
+          </div>
+          <span class="bio-install-percent" id="fp-install-percent">0%</span>
+        </div>
+        <div class="bio-progress-bar-container">
+          <div class="bio-progress-bar-fill" id="fp-install-bar-fill" style="width: 0%"></div>
+        </div>
+        <div class="bio-terminal-header">
+          <span>Installation Terminal Output</span>
+          <button id="btn-toggle-fp-logs" class="bio-toggle-btn">Hide Logs</button>
+        </div>
+        <div class="bio-terminal-output" id="fp-install-logs-output"></div>
+      </div>
+
       <!-- Live Enrollment / Action Status Banner -->
       <div id="fp-action-banner" class="settings-status-banner" style="display: none"></div>
     </div>
@@ -316,6 +355,47 @@
             </button>
           </div>
         </div>
+      </div>
+
+      <!-- Interactive Face Progress Box (Enrollment & Testing) -->
+      <div id="face-progress-box" class="bio-progress-box" style="display: none">
+        <div class="bio-progress-header">
+          <div class="bio-progress-title-row">
+            <span class="bio-pulse-dot bio-pulse-purple" id="face-progress-dot"></span>
+            <span class="bio-progress-title" id="face-progress-title">Look at IR Camera</span>
+          </div>
+          <span class="bio-progress-percent" id="face-progress-percent"></span>
+        </div>
+        <div class="bio-progress-footer">
+          <span class="bio-progress-step" id="face-progress-step"
+            >Capturing facial features... Look directly at the sensor.</span
+          >
+        </div>
+      </div>
+
+      <!-- Howdy Package Installer Box (Streaming deb & dependencies logs) -->
+      <div id="face-install-box" class="bio-install-box" style="display: none">
+        <div class="bio-install-header">
+          <div class="bio-install-status-row">
+            <span class="install-logs-spinner" id="face-install-spinner"></span>
+            <span class="bio-install-step" id="face-install-step"
+              >Preparing Howdy installation...</span
+            >
+          </div>
+          <span class="bio-install-percent" id="face-install-percent">0%</span>
+        </div>
+        <div class="bio-progress-bar-container">
+          <div
+            class="bio-progress-bar-fill bio-bar-purple"
+            id="face-install-bar-fill"
+            style="width: 0%"
+          ></div>
+        </div>
+        <div class="bio-terminal-header">
+          <span>Installation Terminal Output</span>
+          <button id="btn-toggle-face-logs" class="bio-toggle-btn">Hide Logs</button>
+        </div>
+        <div class="bio-terminal-output" id="face-install-logs-output"></div>
       </div>
 
       <!-- Live Action Status Banner -->

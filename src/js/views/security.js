@@ -16,7 +16,6 @@ const updateInstallLogs = (logs) => installLogs.update(logs);
 const completeInstallLogs = (ok) => installLogs.complete(ok);
 
 let scanInProgress = false;
-let currentBiometricData = null;
 
 export async function loadSecurityStatus() {
   console.log('[Security] Loading biometrics and security status...');
@@ -41,7 +40,6 @@ async function loadClamavStatus() {
 export async function loadBiometricsStatus() {
   try {
     const overview = await invoke('get_biometric_overview');
-    currentBiometricData = overview;
     updateBiometricsUI(overview);
   } catch (error) {
     console.error('[Security] Error loading biometric status:', error);
@@ -222,49 +220,303 @@ function updateBiometricsUI(data) {
   }
 }
 
+let biometricsEventsAttached = false;
+async function setupBiometricsEvents() {
+  if (biometricsEventsAttached || !window.__TAURI__?.event?.listen) {
+    return;
+  }
+  biometricsEventsAttached = true;
+  const { listen } = window.__TAURI__.event;
+
+  await listen('fingerprint-enroll-progress', (event) => {
+    handleFingerprintEnrollProgress(event.payload);
+  });
+
+  await listen('fingerprint-verify-progress', (event) => {
+    handleFingerprintVerifyProgress(event.payload);
+  });
+
+  await listen('biometric-install-progress', (event) => {
+    handleBiometricInstallProgress(event.payload);
+  });
+}
+
+function handleFingerprintEnrollProgress(payload) {
+  if (!payload) {
+    return;
+  }
+  const progressBox = document.getElementById('fp-progress-box');
+  const percentEl = document.getElementById('fp-progress-percent');
+  const fillEl = document.getElementById('fp-progress-bar-fill');
+  const stepEl = document.getElementById('fp-progress-step');
+  const banner = document.getElementById('fp-action-banner');
+
+  if (progressBox) {
+    progressBox.style.display = 'flex';
+  }
+  if (percentEl) {
+    percentEl.textContent = `${payload.percent}%`;
+  }
+  if (fillEl) {
+    fillEl.style.width = `${payload.percent}%`;
+  }
+  if (stepEl && payload.message) {
+    stepEl.textContent = payload.message;
+  }
+
+  if (payload.done) {
+    if (banner) {
+      banner.style.display = 'block';
+      banner.className = payload.success
+        ? 'settings-status-banner success'
+        : 'settings-status-banner error';
+      banner.textContent = payload.message;
+    }
+  }
+}
+
+function handleFingerprintVerifyProgress(payload) {
+  if (!payload) {
+    return;
+  }
+  const progressBox = document.getElementById('fp-progress-box');
+  const titleEl = document.getElementById('fp-progress-title');
+  const stepEl = document.getElementById('fp-progress-step');
+  const fillEl = document.getElementById('fp-progress-bar-fill');
+  const percentEl = document.getElementById('fp-progress-percent');
+  const banner = document.getElementById('fp-action-banner');
+
+  if (progressBox) {
+    progressBox.style.display = 'flex';
+  }
+  if (titleEl) {
+    titleEl.textContent = 'Verify Fingerprint';
+  }
+  if (percentEl) {
+    percentEl.textContent = payload.status === 'match' ? '100%' : '';
+  }
+  if (fillEl) {
+    fillEl.style.width = payload.status === 'match' ? '100%' : '60%';
+  }
+  if (stepEl && payload.message) {
+    stepEl.textContent = payload.message;
+  }
+
+  if (payload.done) {
+    if (banner) {
+      banner.style.display = 'block';
+      banner.className = payload.success
+        ? 'settings-status-banner success'
+        : 'settings-status-banner error';
+      banner.textContent = payload.message;
+    }
+  }
+}
+
+function handleBiometricInstallProgress(payload) {
+  if (!payload) {
+    return;
+  }
+  const isFace = payload.target === 'face';
+  const prefix = isFace ? 'face' : 'fp';
+
+  const installBox = document.getElementById(`${prefix}-install-box`);
+  const percentEl = document.getElementById(`${prefix}-install-percent`);
+  const fillEl = document.getElementById(`${prefix}-install-bar-fill`);
+  const stepEl = document.getElementById(`${prefix}-install-step`);
+  const logsEl = document.getElementById(`${prefix}-install-logs-output`);
+  const spinner = document.getElementById(`${prefix}-install-spinner`);
+
+  if (installBox) {
+    installBox.style.display = 'flex';
+  }
+  if (percentEl) {
+    percentEl.textContent = `${payload.percent}%`;
+  }
+  if (fillEl) {
+    fillEl.style.width = `${payload.percent}%`;
+  }
+  if (stepEl && payload.stage) {
+    stepEl.textContent = payload.stage;
+  }
+
+  if (logsEl && payload.log_line) {
+    const line = document.createElement('div');
+    line.className = 'bio-log-line';
+    if (payload.log_line.includes('✓') || payload.log_line.includes('ALL_DONE')) {
+      line.style.color = '#10b981';
+    } else if (payload.log_line.includes('ERR') || payload.log_line.includes('✗')) {
+      line.style.color = '#ef4444';
+    } else if (payload.log_line.startsWith('===')) {
+      line.style.color = '#38bdf8';
+      line.style.fontWeight = 'bold';
+    }
+    line.textContent = payload.log_line;
+    logsEl.appendChild(line);
+    logsEl.scrollTop = logsEl.scrollHeight;
+  }
+
+  if (payload.done) {
+    if (spinner) {
+      spinner.style.display = 'none';
+    }
+    showNotification(
+      payload.stage || 'Installation finished',
+      payload.success ? 'success' : 'error'
+    );
+  }
+}
+
 async function handleEnrollFinger() {
   const select = document.getElementById('select-enroll-finger');
   const finger = select ? select.value : 'right-index-finger';
   const banner = document.getElementById('fp-action-banner');
+  const progressBox = document.getElementById('fp-progress-box');
+  const titleEl = document.getElementById('fp-progress-title');
+  const percentEl = document.getElementById('fp-progress-percent');
+  const fillEl = document.getElementById('fp-progress-bar-fill');
+  const stepEl = document.getElementById('fp-progress-step');
+  const btn = document.getElementById('btn-enroll-finger');
 
-  if (banner) {
-    banner.style.display = 'block';
-    banner.className = 'settings-status-banner info';
-    banner.textContent = `Place and swipe your finger (${finger}) on the Goodix sensor repeatedly when prompted...`;
+  if (progressBox) {
+    progressBox.style.display = 'flex';
+  }
+  if (titleEl) {
+    titleEl.textContent = `Enrolling ${finger.replace(/-/g, ' ')}`;
+  }
+  if (percentEl) {
+    percentEl.textContent = '0%';
+  }
+  if (fillEl) {
+    fillEl.style.width = '0%';
+  }
+  if (stepEl) {
+    stepEl.textContent =
+      'Connecting to Goodix fingerprint reader... Place and lift your finger when prompted.';
   }
 
-  showNotification('Touch the fingerprint sensor to begin enrollment', 'info');
+  if (banner) {
+    banner.style.display = 'none';
+  }
+
+  showNotification('Place and lift your finger on the sensor repeatedly', 'info');
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Enrolling...';
+  }
 
   try {
-    const btn = document.getElementById('btn-enroll-finger');
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = 'Enrolling...';
-    }
-
-    // Launch enrollment in terminal or fprintd
-    const response = await invoke('install_fingerprint_packages');
+    const response = await invoke('enroll_fingerprint', { finger });
     if (banner) {
+      banner.style.display = 'block';
       banner.className = response.success
         ? 'settings-status-banner success'
         : 'settings-status-banner error';
-      banner.textContent = response.message || 'Fingerprint enrollment initialized.';
+      banner.textContent = response.message;
     }
-
+    showNotification(response.message, response.success ? 'success' : 'error');
     await loadBiometricsStatus();
   } catch (err) {
     console.error('[Biometrics] Enroll error:', err);
     if (banner) {
+      banner.style.display = 'block';
       banner.className = 'settings-status-banner error';
       banner.textContent = `Enrollment error: ${err}`;
     }
+    showNotification(`Enrollment error: ${err}`, 'error');
   } finally {
-    const btn = document.getElementById('btn-enroll-finger');
     if (btn) {
       btn.disabled = false;
       btn.innerHTML =
         '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> Enroll Finger';
     }
+    setTimeout(() => {
+      if (progressBox && percentEl?.textContent === '100%') {
+        progressBox.style.display = 'none';
+      }
+    }, 4000);
+  }
+}
+
+async function handleCancelFp() {
+  try {
+    await invoke('cancel_fingerprint_action');
+    const progressBox = document.getElementById('fp-progress-box');
+    if (progressBox) {
+      progressBox.style.display = 'none';
+    }
+    showNotification('Fingerprint action cancelled', 'info');
+  } catch (err) {
+    console.error('[Biometrics] Cancel error:', err);
+  }
+}
+
+async function handleVerifyFinger() {
+  const banner = document.getElementById('fp-action-banner');
+  const progressBox = document.getElementById('fp-progress-box');
+  const titleEl = document.getElementById('fp-progress-title');
+  const percentEl = document.getElementById('fp-progress-percent');
+  const fillEl = document.getElementById('fp-progress-bar-fill');
+  const stepEl = document.getElementById('fp-progress-step');
+  const btn = document.getElementById('btn-verify-finger');
+
+  if (progressBox) {
+    progressBox.style.display = 'flex';
+  }
+  if (titleEl) {
+    titleEl.textContent = 'Verify Fingerprint';
+  }
+  if (percentEl) {
+    percentEl.textContent = '';
+  }
+  if (fillEl) {
+    fillEl.style.width = '50%';
+  }
+  if (stepEl) {
+    stepEl.textContent = 'Touch the sensor now to verify...';
+  }
+
+  if (banner) {
+    banner.style.display = 'none';
+  }
+
+  showNotification('Touch the fingerprint sensor to verify...', 'info');
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Waiting for touch...';
+  }
+
+  try {
+    const response = await invoke('verify_fingerprint', { finger: null });
+    if (banner) {
+      banner.style.display = 'block';
+      banner.className = response.success
+        ? 'settings-status-banner success'
+        : 'settings-status-banner error';
+      banner.textContent = response.message;
+    }
+    showNotification(response.message, response.success ? 'success' : 'error');
+  } catch (err) {
+    console.error('[Biometrics] Verify error:', err);
+    if (banner) {
+      banner.style.display = 'block';
+      banner.className = 'settings-status-banner error';
+      banner.textContent = `Verification error: ${err}`;
+    }
+    showNotification(`Verification error: ${err}`, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML =
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Verify';
+    }
+    setTimeout(() => {
+      if (progressBox) {
+        progressBox.style.display = 'none';
+      }
+    }, 4000);
   }
 }
 
@@ -309,33 +561,50 @@ async function handleClearAllFingers() {
   }
 }
 
-async function handleVerifyFinger() {
-  const banner = document.getElementById('fp-action-banner');
-  if (banner) {
-    banner.style.display = 'block';
-    banner.className = 'settings-status-banner info';
-    banner.textContent = 'Verification active: touch the fingerprint sensor now...';
-  }
-  showNotification('Touch the fingerprint sensor to verify...', 'info');
-}
-
 async function handleInstallFprintd() {
   const banner = document.getElementById('fp-action-banner');
   const btn = document.getElementById('btn-install-fprintd');
+  const installBox = document.getElementById('fp-install-box');
+  const fillEl = document.getElementById('fp-install-bar-fill');
+  const percentEl = document.getElementById('fp-install-percent');
+  const stepEl = document.getElementById('fp-install-step');
+  const logsEl = document.getElementById('fp-install-logs-output');
+  const spinner = document.getElementById('fp-install-spinner');
+
   if (btn) {
     btn.disabled = true;
     btn.textContent = 'Installing...';
   }
 
-  if (banner) {
-    banner.style.display = 'block';
-    banner.className = 'settings-status-banner info';
-    banner.textContent = 'Installing fprintd & libpam-fprintd packages...';
+  if (installBox) {
+    installBox.style.display = 'flex';
   }
+  if (percentEl) {
+    percentEl.textContent = '0%';
+  }
+  if (fillEl) {
+    fillEl.style.width = '0%';
+  }
+  if (stepEl) {
+    stepEl.textContent = 'Requesting authorization to install fprintd...';
+  }
+  if (logsEl) {
+    logsEl.innerHTML = '';
+  }
+  if (spinner) {
+    spinner.style.display = 'inline-block';
+  }
+
+  if (banner) {
+    banner.style.display = 'none';
+  }
+
+  showNotification('Starting fprintd installation...', 'info');
 
   try {
     const response = await invoke('install_fingerprint_packages');
     if (banner) {
+      banner.style.display = 'block';
       banner.className = response.success
         ? 'settings-status-banner success'
         : 'settings-status-banner error';
@@ -344,14 +613,92 @@ async function handleInstallFprintd() {
     showNotification(response.message, response.success ? 'success' : 'error');
     await loadBiometricsStatus();
   } catch (err) {
+    console.error('[Biometrics] Install error:', err);
     if (banner) {
+      banner.style.display = 'block';
       banner.className = 'settings-status-banner error';
       banner.textContent = `Installation failed: ${err}`;
     }
+    showNotification(`Installation failed: ${err}`, 'error');
   } finally {
     if (btn) {
       btn.disabled = false;
       btn.textContent = 'Install fprintd';
+    }
+    if (spinner) {
+      spinner.style.display = 'none';
+    }
+  }
+}
+
+async function handleInstallHowdy() {
+  const select = document.getElementById('select-ir-camera');
+  const irCamera = select ? select.value : null;
+  const banner = document.getElementById('face-action-banner');
+  const btn = document.getElementById('btn-install-howdy');
+  const installBox = document.getElementById('face-install-box');
+  const fillEl = document.getElementById('face-install-bar-fill');
+  const percentEl = document.getElementById('face-install-percent');
+  const stepEl = document.getElementById('face-install-step');
+  const logsEl = document.getElementById('face-install-logs-output');
+  const spinner = document.getElementById('face-install-spinner');
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Installing...';
+  }
+
+  if (installBox) {
+    installBox.style.display = 'flex';
+  }
+  if (percentEl) {
+    percentEl.textContent = '0%';
+  }
+  if (fillEl) {
+    fillEl.style.width = '0%';
+  }
+  if (stepEl) {
+    stepEl.textContent = 'Requesting authorization to install Howdy...';
+  }
+  if (logsEl) {
+    logsEl.innerHTML = '';
+  }
+  if (spinner) {
+    spinner.style.display = 'inline-block';
+  }
+
+  if (banner) {
+    banner.style.display = 'none';
+  }
+
+  showNotification('Starting Howdy installation...', 'info');
+
+  try {
+    const response = await invoke('install_howdy_packages', { irCamera });
+    if (banner) {
+      banner.style.display = 'block';
+      banner.className = response.success
+        ? 'settings-status-banner success'
+        : 'settings-status-banner error';
+      banner.textContent = response.message;
+    }
+    showNotification(response.message, response.success ? 'success' : 'error');
+    await loadBiometricsStatus();
+  } catch (err) {
+    console.error('[Biometrics] Howdy install error:', err);
+    if (banner) {
+      banner.style.display = 'block';
+      banner.className = 'settings-status-banner error';
+      banner.textContent = `Installation failed: ${err}`;
+    }
+    showNotification(`Installation failed: ${err}`, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Install Howdy';
+    }
+    if (spinner) {
+      spinner.style.display = 'none';
     }
   }
 }
@@ -384,32 +731,105 @@ async function handleSetCamera() {
 
 async function handleAddFaceModel() {
   const input = document.getElementById('input-face-label');
+  const select = document.getElementById('select-ir-camera');
   const banner = document.getElementById('face-action-banner');
+  const progressBox = document.getElementById('face-progress-box');
+  const stepEl = document.getElementById('face-progress-step');
+  const btn = document.getElementById('btn-add-face-model');
+
   const label = input && input.value.trim() ? input.value.trim() : 'ThinkPad User';
+  const cameraDevice = select ? select.value : null;
+
+  if (progressBox) {
+    progressBox.style.display = 'flex';
+  }
+  if (stepEl) {
+    stepEl.textContent = `Capturing facial profile "${label}"... Look directly at the IR sensor.`;
+  }
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Scanning...';
+  }
 
   if (banner) {
-    banner.style.display = 'block';
-    banner.className = 'settings-status-banner info';
-    banner.textContent = `Looking at the camera... Capturing face profile "${label}"...`;
+    banner.style.display = 'none';
   }
+
   showNotification('Look directly into the IR camera...', 'info');
 
   try {
-    const response = await invoke('configure_howdy_camera', {
-      devicePath: currentBiometricData?.face_recognition?.recommended_camera || '/dev/video2'
-    });
+    const response = await invoke('add_face_model', { label, cameraDevice });
     if (banner) {
-      banner.className = 'settings-status-banner success';
+      banner.style.display = 'block';
+      banner.className = response.success
+        ? 'settings-status-banner success'
+        : 'settings-status-banner error';
       banner.textContent = response.message;
     }
+    showNotification(response.message, response.success ? 'success' : 'error');
     if (input) {
       input.value = '';
     }
     await loadBiometricsStatus();
   } catch (err) {
+    console.error('[Biometrics] Add face model error:', err);
     if (banner) {
+      banner.style.display = 'block';
       banner.className = 'settings-status-banner error';
       banner.textContent = `Face capture error: ${err}`;
+    }
+    showNotification(`Face capture error: ${err}`, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML =
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> Add Face Profile';
+    }
+    setTimeout(() => {
+      if (progressBox) {
+        progressBox.style.display = 'none';
+      }
+    }, 4000);
+  }
+}
+
+async function handleTestFace() {
+  const banner = document.getElementById('face-action-banner');
+  const btn = document.getElementById('btn-test-face');
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Testing...';
+  }
+
+  if (banner) {
+    banner.style.display = 'block';
+    banner.className = 'settings-status-banner info';
+    banner.textContent = 'Testing IR camera recognition... Look at the screen.';
+  }
+
+  showNotification('Testing face recognition...', 'info');
+
+  try {
+    const response = await invoke('test_face_model');
+    if (banner) {
+      banner.className = response.success
+        ? 'settings-status-banner success'
+        : 'settings-status-banner error';
+      banner.textContent = response.message;
+    }
+    showNotification(response.message, response.success ? 'success' : 'error');
+  } catch (err) {
+    if (banner) {
+      banner.className = 'settings-status-banner error';
+      banner.textContent = `Test error: ${err}`;
+    }
+    showNotification(`Test error: ${err}`, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML =
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Test Recognition';
     }
   }
 }
@@ -571,6 +991,44 @@ export function setupSecurityHandlers() {
   if (btnClearFace) {
     btnClearFace.addEventListener('click', handleClearFaceModels);
   }
+
+  const btnCancelFp = document.getElementById('btn-cancel-fp');
+  if (btnCancelFp) {
+    btnCancelFp.addEventListener('click', handleCancelFp);
+  }
+
+  const btnInstallHowdy = document.getElementById('btn-install-howdy');
+  if (btnInstallHowdy) {
+    btnInstallHowdy.addEventListener('click', handleInstallHowdy);
+  }
+
+  const btnTestFace = document.getElementById('btn-test-face');
+  if (btnTestFace) {
+    btnTestFace.addEventListener('click', handleTestFace);
+  }
+
+  const btnToggleFpLogs = document.getElementById('btn-toggle-fp-logs');
+  const fpLogsOutput = document.getElementById('fp-install-logs-output');
+  if (btnToggleFpLogs && fpLogsOutput) {
+    btnToggleFpLogs.addEventListener('click', () => {
+      const isHidden = fpLogsOutput.style.display === 'none';
+      fpLogsOutput.style.display = isHidden ? 'block' : 'none';
+      btnToggleFpLogs.textContent = isHidden ? 'Hide Logs' : 'Show Logs';
+    });
+  }
+
+  const btnToggleFaceLogs = document.getElementById('btn-toggle-face-logs');
+  const faceLogsOutput = document.getElementById('face-install-logs-output');
+  if (btnToggleFaceLogs && faceLogsOutput) {
+    btnToggleFaceLogs.addEventListener('click', () => {
+      const isHidden = faceLogsOutput.style.display === 'none';
+      faceLogsOutput.style.display = isHidden ? 'block' : 'none';
+      btnToggleFaceLogs.textContent = isHidden ? 'Hide Logs' : 'Show Logs';
+    });
+  }
+
+  // Attach Tauri biometrics streaming event listeners
+  setupBiometricsEvents();
 
   // Refresh status button for ClamAV
   const refreshBtn = document.getElementById('btn-refresh-status');
