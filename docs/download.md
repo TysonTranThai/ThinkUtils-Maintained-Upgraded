@@ -6,7 +6,7 @@ description: Download ThinkUtils for Linux — .deb, .rpm and AppImage for Think
 <script setup>
 import { ref, onMounted, computed } from "vue";
 
-const REPO = "vietanhdev/ThinkUtils";
+const REPO = "TysonTranThai/ThinkUtils-Maintained-Upgraded";
 const RELEASES_URL = `https://github.com/${REPO}/releases`;
 
 const release = ref(null);

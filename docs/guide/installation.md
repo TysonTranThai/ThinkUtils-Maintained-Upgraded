@@ -12,7 +12,7 @@ sudo apt install thinkutils
 
 ## Manual Download
 
-Download the latest `.deb`, `.rpm`, or `.AppImage` from [GitHub Releases](https://github.com/vietanhdev/ThinkUtils/releases).
+Download the latest `.deb`, `.rpm`, or `.AppImage` from [GitHub Releases](https://github.com/TysonTranThai/ThinkUtils-Maintained-Upgraded/releases).
 
 ::: code-group
 ```bash [Debian/Ubuntu]
@@ -51,8 +51,8 @@ sudo dnf install webkit2gtk4.1-devel openssl-devel curl wget file \
 ### Build
 
 ```bash
-git clone https://github.com/vietanhdev/ThinkUtils.git
-cd ThinkUtils
+git clone https://github.com/TysonTranThai/ThinkUtils-Maintained-Upgraded.git
+cd ThinkUtils-Maintained-Upgraded
 npm install
 npm run tauri build
 ```

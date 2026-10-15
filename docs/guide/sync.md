@@ -1,30 +1,20 @@
-# Settings Sync
+# Settings Management
 
-Sync your ThinkUtils configuration to Google Drive and restore it on any ThinkPad.
+Backup, export, and import your ThinkUtils configuration to keep your settings safe and easily migrate between machines.
 
-![Settings Sync](/screenshots/settings_sync.png)
+![Settings Management](/screenshots/settings_sync.png)
 
 ## Features
 
-- **Cloud Backup**: Save fan mode, battery thresholds, and app preferences to Google Drive
-- **Cross-Device**: Keep settings consistent across multiple ThinkPads
-- **Secure**: OAuth authentication — your credentials never touch ThinkUtils servers
+- **JSON Export**: Export fan curve presets, battery thresholds, power profiles, and application settings to a clean JSON file.
+- **Easy Import & Migration**: Moving to a new ThinkPad? Import your saved configuration with one click.
+- **Safety & Validation**: Imported settings are fully validated to ensure temperature targets and battery limits are safe for your hardware before applying.
+- **Reset to Defaults**: Quickly revert any customized configuration back to factory recommended settings.
 
 ## Usage
 
-1. Click **Sign in with Google**
-2. Authorize ThinkUtils to access Google Drive
-3. **Sync Now** to backup current settings
-4. **Download Settings** to restore from cloud
+1. Open the **Settings** view from the sidebar navigation.
+2. Under **Backup & Restore**, click **Export Settings** to save your current setup as a `.json` file.
+3. To restore or load a previously saved configuration, click **Import Settings** and select your configuration file.
+4. To return to standard defaults, click **Reset to Defaults**.
 
-Settings are stored as `thinkutils_settings.json` in your Google Drive root.
-
-## Setup
-
-Google Drive sync requires OAuth credentials. This is a one-time setup for developers building from source.
-
-See [Google OAuth Setup](/development/google-oauth) for configuration instructions.
-
-::: info
-Pre-built releases may come with OAuth already configured. Check the release notes.
-:::

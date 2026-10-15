@@ -13,10 +13,10 @@ hero:
       link: /guide/getting-started
     - theme: alt
       text: Download
-      link: https://github.com/vietanhdev/ThinkUtils/releases
+      link: /download
     - theme: alt
       text: GitHub
-      link: https://github.com/vietanhdev/ThinkUtils
+      link: https://github.com/TysonTranThai/ThinkUtils-Maintained-Upgraded
 
 features:
   - icon: 🌀
@@ -37,4 +37,7 @@ features:
   - icon: 🤖
     title: AI Integration
     details: Built-in MCP server lets AI assistants like Claude monitor and control your ThinkPad settings.
+  - icon: ⚙️
+    title: Settings Management
+    details: Export and import configuration profiles to JSON for seamless migration and backup across devices.
 ---

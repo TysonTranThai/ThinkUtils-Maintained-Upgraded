@@ -5,6 +5,7 @@ A powerful, native desktop application that unlocks the full potential of your T
 ![ThinkUtils](https://img.shields.io/badge/platform-Linux-blue)
 ![License](https://img.shields.io/badge/license-LGPL%20v3-green)
 ![Tauri](https://img.shields.io/badge/Built%20with-Tauri-orange)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://tysontranthai.github.io/ThinkUtils-Maintained-Upgraded/)
 
 ## Screenshots
 
@@ -47,7 +48,7 @@ sudo apt install thinkutils
 
 ### Manual Download
 
-Download the latest `.deb`, `.rpm`, or `.AppImage` from [GitHub Releases](https://github.com/vietanhdev/ThinkUtils/releases).
+Download the latest `.deb`, `.rpm`, or `.AppImage` from [GitHub Releases](https://github.com/TysonTranThai/ThinkUtils-Maintained-Upgraded/releases).
 
 ```bash
 # Debian/Ubuntu
@@ -217,8 +218,8 @@ sudo dnf install cargo \
 
 1. **Clone and install dependencies:**
 ```bash
-git clone https://github.com/vietanhdev/ThinkUtils.git
-cd ThinkUtils
+git clone https://github.com/TysonTranThai/ThinkUtils-Maintained-Upgraded.git
+cd ThinkUtils-Maintained-Upgraded
 npm install
 ```
 

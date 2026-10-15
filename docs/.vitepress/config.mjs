@@ -3,10 +3,11 @@ import { withMermaid } from 'vitepress-plugin-mermaid';
 
 export default withMermaid(
   defineConfig({
+    base: '/ThinkUtils-Maintained-Upgraded/',
     title: 'ThinkUtils',
     description:
       'A powerful, native desktop application that unlocks the full potential of your ThinkPad on Linux.',
-    head: [['link', { rel: 'icon', href: '/favicon.ico' }]],
+    head: [['link', { rel: 'icon', href: '/ThinkUtils-Maintained-Upgraded/favicon.ico' }]],
     themeConfig: {
       logo: '/logo.svg',
       nav: [
@@ -33,7 +34,7 @@ export default withMermaid(
               { text: 'System Monitor', link: '/guide/monitor' },
               { text: 'Security', link: '/guide/security' },
               { text: 'AI Integration (MCP)', link: '/guide/mcp' },
-              { text: 'Settings Sync', link: '/guide/sync' },
+              { text: 'Settings Management', link: '/guide/sync' },
             ],
           },
         ],
@@ -55,11 +56,11 @@ export default withMermaid(
         ],
       },
       socialLinks: [
-        { icon: 'github', link: 'https://github.com/vietanhdev/ThinkUtils' },
+        { icon: 'github', link: 'https://github.com/TysonTranThai/ThinkUtils-Maintained-Upgraded' },
       ],
       footer: {
         message: 'Released under the LGPL v3 License.',
-        copyright: 'Copyright © Viet Anh Nguyen',
+        copyright: 'Copyright © Tyson Tran & Viet Anh Nguyen',
       },
       search: {
         provider: 'local',
