@@ -367,6 +367,7 @@ pub fn run() {
             biometrics::install_howdy_packages,
             biometrics::add_face_model,
             biometrics::test_face_model,
+            biometrics::configure_biometric_pam,
             biometrics::remove_face_model,
             biometrics::clear_face_models,
         ])

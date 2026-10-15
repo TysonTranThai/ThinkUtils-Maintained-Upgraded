@@ -353,7 +353,10 @@ pub fn check_pam_status() -> (bool, bool) {
             if content.contains("pam_fprintd.so") {
                 fprintd_pam = true;
             }
-            if content.contains("pam_howdy.so") {
+            if content.contains("pam_howdy.so")
+                || content.contains("howdy/pam.py")
+                || content.contains("howdy")
+            {
                 howdy_pam = true;
             }
         }
@@ -482,6 +485,12 @@ fn build_howdy_bash_command(subcommand: &str) -> String {
         String::new()
     };
 
+    let subcmd_exec = if !subcommand.trim().is_empty() {
+        format!("/usr/bin/howdy {} {}", user_arg, subcommand)
+    } else {
+        String::new()
+    };
+
     format!(
         "\
 export USER='{user}'
@@ -512,21 +521,46 @@ fi
 chmod 755 /lib/security/howdy/cli.py 2>/dev/null || true
 mkdir -p /lib/security/howdy/models 2>/dev/null || true
 chmod 755 /lib/security/howdy/models 2>/dev/null || true
+
+# Fix pam.py Python 3 compatibility
+if [ -f /lib/security/howdy/pam.py ] && grep -q 'import ConfigParser' /lib/security/howdy/pam.py 2>/dev/null; then
+  sed -i 's/import ConfigParser/try:\\n    import configparser\\nexcept ImportError:\\n    import ConfigParser as configparser/' /lib/security/howdy/pam.py 2>/dev/null || true
+fi
+
+# Ensure suppress_unknown=true and dark_threshold is tolerant in config.ini
+if [ -f /lib/security/howdy/config.ini ]; then
+  sed -i 's|^suppress_unknown = .*|suppress_unknown = true|' /lib/security/howdy/config.ini 2>/dev/null || true
+  sed -i 's|^dark_threshold = .*|dark_threshold = 85|' /lib/security/howdy/config.ini 2>/dev/null || true
+fi
+
+# Ensure PAM common-auth includes Howdy
+if [ -f /lib/security/howdy/pam.py ] && [ -f /etc/pam.d/common-auth ]; then
+  if ! grep -q 'howdy/pam.py' /etc/pam.d/common-auth 2>/dev/null; then
+    sed -i '/pam_unix\\.so/i auth\\t[success=end default=ignore]\\tpam_python.so /lib/security/howdy/pam.py' /etc/pam.d/common-auth 2>/dev/null || true
+  fi
+fi
+
+# Ensure PAM common-auth includes fprintd if present
+if [ -f /usr/lib/x86_64-linux-gnu/security/pam_fprintd.so ] || [ -f /lib/x86_64-linux-gnu/security/pam_fprintd.so ]; then
+  if [ -f /etc/pam.d/common-auth ] && ! grep -q 'pam_fprintd.so' /etc/pam.d/common-auth 2>/dev/null; then
+    sed -i '/pam_unix\\.so/i auth\\t[success=end default=ignore]\\tpam_fprintd.so max-tries=1 timeout=10' /etc/pam.d/common-auth 2>/dev/null || true
+  fi
+fi
+
 if [ ! -f /lib/security/howdy/dlib-data/shape_predictor_5_face_landmarks.dat ]; then
   if [ -x /lib/security/howdy/dlib-data/install.sh ]; then
     (cd /lib/security/howdy/dlib-data && ./install.sh) 2>/dev/null || true
   fi
 fi
 /usr/bin/python3 -c 'import dlib' 2>/dev/null || /usr/bin/python3 -m pip install --break-system-packages dlib 2>/dev/null || true
-/usr/bin/howdy {user_arg} {subcmd}
+{subcmd_exec}
 ",
         user = user,
         display = display,
         wayland = wayland,
         xauth = xauth,
         xdg_runtime = xdg_runtime,
-        user_arg = user_arg,
-        subcmd = subcommand
+        subcmd_exec = subcmd_exec
     )
 }
 
@@ -1439,6 +1473,14 @@ for p in ['/lib/security/howdy/models/{user}.dat', '/etc/howdy/models/{user}.dat
 \"
   chmod 755 /lib/security/howdy/models 2>/dev/null || true
   chmod 644 /lib/security/howdy/models/*.dat 2>/dev/null || true
+
+  # Ensure PAM is active for login and sudo
+  if [ -x /usr/sbin/pam-auth-update ]; then
+    DEBIAN_FRONTEND=noninteractive /usr/sbin/pam-auth-update --package --enable howdy 2>/dev/null || true
+  fi
+  if [ -f /etc/pam.d/common-auth ] && ! grep -q -E 'howdy|pam_python.*pam\\.py' /etc/pam.d/common-auth 2>/dev/null; then
+    sed -i '/pam_unix\\.so/i auth\\t[success=end default=ignore]\\tpam_python.so /lib/security/howdy/pam.py' /etc/pam.d/common-auth 2>/dev/null || true
+  fi
 fi
 exit $STATUS
 ",
@@ -1494,8 +1536,119 @@ exit $STATUS
 }
 
 #[tauri::command]
+pub fn configure_biometric_pam() -> BiometricActionResponse {
+    let script = "\
+# 1. Fix pam.py Python 3 compatibility
+if [ -f /lib/security/howdy/pam.py ] && grep -q 'import ConfigParser' /lib/security/howdy/pam.py 2>/dev/null; then
+  sed -i 's/import ConfigParser/try:\\n    import configparser\\nexcept ImportError:\\n    import ConfigParser as configparser/' /lib/security/howdy/pam.py 2>/dev/null || true
+fi
+
+# 2. Ensure suppress_unknown=true and dark_threshold is tolerant in config.ini
+for cfg in /lib/security/howdy/config.ini /etc/howdy/config.ini; do
+  if [ -f \"$cfg\" ]; then
+    sed -i 's|^suppress_unknown = .*|suppress_unknown = true|' \"$cfg\" 2>/dev/null || true
+    sed -i 's|^dark_threshold = .*|dark_threshold = 85|' \"$cfg\" 2>/dev/null || true
+  fi
+done
+
+# 3. Update PAM via pam-auth-update if available
+if [ -x /usr/sbin/pam-auth-update ]; then
+  DEBIAN_FRONTEND=noninteractive /usr/sbin/pam-auth-update --package --enable howdy 2>/dev/null || true
+  if [ -f /usr/lib/x86_64-linux-gnu/security/pam_fprintd.so ] || [ -f /lib/x86_64-linux-gnu/security/pam_fprintd.so ]; then
+    DEBIAN_FRONTEND=noninteractive /usr/sbin/pam-auth-update --package --enable fprintd 2>/dev/null || true
+  fi
+fi
+
+# 4. Fallback check for Debian /etc/pam.d/common-auth
+if [ -f /etc/pam.d/common-auth ]; then
+  if ! grep -q -E 'howdy|pam_python.*pam\\.py' /etc/pam.d/common-auth 2>/dev/null; then
+    sed -i '/pam_unix\\.so/i auth\\t[success=end default=ignore]\\tpam_python.so /lib/security/howdy/pam.py' /etc/pam.d/common-auth 2>/dev/null || true
+  fi
+  if ([ -f /usr/lib/x86_64-linux-gnu/security/pam_fprintd.so ] || [ -f /lib/x86_64-linux-gnu/security/pam_fprintd.so ]) && ! grep -q 'pam_fprintd\\.so' /etc/pam.d/common-auth 2>/dev/null; then
+    sed -i '/pam_unix\\.so/i auth\\t[success=end default=ignore]\\tpam_fprintd.so max-tries=1 timeout=10' /etc/pam.d/common-auth 2>/dev/null || true
+  fi
+fi
+
+# 5. Check for Arch/Fedora system-auth
+if [ -f /etc/pam.d/system-auth ]; then
+  if [ -f /lib64/security/pam_howdy.so ] || [ -f /usr/lib/security/pam_howdy.so ]; then
+    if ! grep -q 'pam_howdy\\.so' /etc/pam.d/system-auth 2>/dev/null; then
+      sed -i '/pam_unix\\.so/i auth\\tsufficient\\tpam_howdy.so' /etc/pam.d/system-auth 2>/dev/null || true
+    fi
+  fi
+fi
+";
+
+    let output = Command::new("pkexec")
+        .args(["bash", "-c", script])
+        .output();
+
+    match output {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+            let (fprint_pam, howdy_pam) = check_pam_status();
+            if out.status.success() || howdy_pam || fprint_pam {
+                BiometricActionResponse {
+                    success: true,
+                    message: "Biometric PAM authentication configured successfully".to_string(),
+                    logs: vec![stdout],
+                    error: None,
+                }
+            } else {
+                BiometricActionResponse {
+                    success: false,
+                    message: "Failed to configure PAM for biometrics".to_string(),
+                    logs: vec![stderr.clone()],
+                    error: Some(stderr),
+                }
+            }
+        }
+        Err(e) => BiometricActionResponse {
+            success: false,
+            message: format!("Failed to run PAM configuration: {}", e),
+            logs: vec![e.to_string()],
+            error: Some(e.to_string()),
+        },
+    }
+}
+
+#[tauri::command]
 pub fn test_face_model() -> BiometricActionResponse {
-    let script = build_howdy_bash_command("test");
+    let user = get_current_login_user();
+
+    // Check if models exist first before touching camera
+    let has_models = ["/lib/security/howdy/models", "/etc/howdy/models"]
+        .iter()
+        .any(|dir| {
+            let user_dat = Path::new(dir).join(format!("{}.dat", user));
+            if user_dat.exists() {
+                if let Ok(metadata) = fs::metadata(&user_dat) {
+                    if metadata.len() > 10 {
+                        return true;
+                    }
+                }
+            }
+            false
+        });
+
+    if !has_models {
+        return BiometricActionResponse {
+            success: false,
+            message: "No face profile enrolled yet. Please click 'Add Face Profile' first.".to_string(),
+            logs: vec!["No face model found for current user".to_string()],
+            error: Some("No face profile enrolled".to_string()),
+        };
+    }
+
+    let script = format!(
+        "\
+pkill -9 -f 'howdy.*compare.py' 2>/dev/null || true
+pkill -9 -f 'howdy.*cli.py.*test' 2>/dev/null || true
+timeout 8 /usr/bin/python3 /lib/security/howdy/compare.py '{user}'
+"
+    );
+
     let output = Command::new("pkexec")
         .args(["bash", "-c", &script])
         .output();
@@ -1504,36 +1657,59 @@ pub fn test_face_model() -> BiometricActionResponse {
         Ok(out) => {
             let stdout = String::from_utf8_lossy(&out.stdout).to_string();
             let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-            let success = out.status.success()
-                || stdout.contains("Closing window")
-                || stderr.contains("Closing window");
+            let code = out.status.code().unwrap_or(-1);
 
-            BiometricActionResponse {
-                success,
-                message: if success {
-                    "Face recognition test completed".to_string()
-                } else {
+            match code {
+                0 => BiometricActionResponse {
+                    success: true,
+                    message: "Face recognized successfully!".to_string(),
+                    logs: vec![stdout],
+                    error: None,
+                },
+                10 => BiometricActionResponse {
+                    success: false,
+                    message: "No face profile found for this user.".to_string(),
+                    logs: vec![stdout, stderr.clone()],
+                    error: Some("No face model configured".to_string()),
+                },
+                11 => BiometricActionResponse {
+                    success: false,
+                    message: "Face recognition timed out. Face not recognized.".to_string(),
+                    logs: vec![stdout, stderr.clone()],
+                    error: Some("Face not recognized within timeout".to_string()),
+                },
+                13 => BiometricActionResponse {
+                    success: false,
+                    message: "Face recognition failed: scene was too dark or IR sensor did not receive enough light.".to_string(),
+                    logs: vec![stdout, stderr.clone()],
+                    error: Some("Scene too dark".to_string()),
+                },
+                124 => BiometricActionResponse {
+                    success: false,
+                    message: "Recognition test timed out after 8 seconds.".to_string(),
+                    logs: vec![stdout, stderr.clone()],
+                    error: Some("Operation timed out".to_string()),
+                },
+                _ => {
                     let err_msg = if !stderr.trim().is_empty() {
                         stderr.trim().to_string()
                     } else if !stdout.trim().is_empty() {
-                        stdout
-                            .lines()
-                            .last()
-                            .unwrap_or("Test ended or cancelled")
-                            .trim()
-                            .to_string()
+                        stdout.trim().to_string()
                     } else {
-                        "Test ended or cancelled".to_string()
+                        format!("Recognition test exited with code {}", code)
                     };
-                    format!("Face recognition test: {}", err_msg)
-                },
-                logs: vec![stdout, stderr.clone()],
-                error: if success { None } else { Some(stderr) },
+                    BiometricActionResponse {
+                        success: false,
+                        message: format!("Face recognition test: {}", err_msg),
+                        logs: vec![stdout, stderr.clone()],
+                        error: Some(err_msg),
+                    }
+                }
             }
         }
         Err(e) => BiometricActionResponse {
             success: false,
-            message: format!("Failed to run howdy test: {}", e),
+            message: format!("Failed to run face recognition test: {}", e),
             logs: vec![e.to_string()],
             error: Some(e.to_string()),
         },

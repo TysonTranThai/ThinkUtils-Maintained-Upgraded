@@ -922,6 +922,9 @@ async function handleAddFaceModel() {
     showNotification(response.message, response.success ? 'success' : 'error');
     if (response.success && input) {
       input.value = '';
+      invoke('configure_biometric_pam').catch((e) =>
+        console.warn('[Biometrics] Background PAM sync warning:', e)
+      );
     }
     await loadBiometricsStatus();
   } catch (err) {
@@ -1066,6 +1069,26 @@ async function handleClearFaceModels() {
       banner.textContent = `Failed to clear face models: ${err}`;
     }
     showNotification(`Failed to clear face models: ${err}`, 'error');
+  }
+}
+
+async function handleConfigurePam() {
+  const chipPamDesc = document.getElementById('chip-pam-desc');
+  if (chipPamDesc) {
+    chipPamDesc.textContent = 'Configuring PAM...';
+  }
+  showNotification('Configuring PAM for biometric authentication...', 'info');
+  try {
+    const res = await invoke('configure_biometric_pam');
+    if (res.success) {
+      showNotification('Biometric PAM authentication configured successfully', 'success');
+    } else {
+      showNotification(res.message || 'Failed to configure PAM', 'error');
+    }
+  } catch (err) {
+    showNotification(`Error configuring PAM: ${err}`, 'error');
+  } finally {
+    await loadBiometricsStatus();
   }
 }
 
@@ -1219,6 +1242,14 @@ export function setupSecurityHandlers() {
       faceLogsOutput.style.display = isHidden ? 'block' : 'none';
       btnToggleFaceLogs.textContent = isHidden ? 'Hide Logs' : 'Show Logs';
     });
+  }
+
+  const chipPamHw = document.getElementById('chip-pam-hw');
+  if (chipPamHw) {
+    chipPamHw.style.cursor = 'pointer';
+    chipPamHw.title =
+      'Click to enable or repair PAM biometric authentication (login, sudo, lock screen)';
+    chipPamHw.addEventListener('click', handleConfigurePam);
   }
 
   // Attach Tauri biometrics streaming event listeners
