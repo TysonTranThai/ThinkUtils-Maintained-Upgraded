@@ -25,6 +25,29 @@ export function setupFanControl() {
 
   // Initialize fan curve editor
   initFanCurve();
+
+  // Listen for external fan speed changes (from top bar indicator or CLI)
+  if (window.__TAURI__?.event?.listen) {
+    window.__TAURI__.event.listen('fan-speed-changed', (event) => {
+      const sp = event.payload?.speed;
+      if (!sp) {
+        return;
+      }
+      if (sp === 'auto') {
+        setFanMode('auto');
+      } else if (sp === 'full-speed' || sp === 'full' || sp === 'max') {
+        setFanMode('full');
+      } else {
+        if (elements.slider) {
+          elements.slider.value = sp;
+        }
+        if (elements.sliderValue) {
+          elements.sliderValue.textContent = sp;
+        }
+        setFanMode('manual', sp);
+      }
+    });
+  }
 }
 
 export async function checkInitialPermissions() {

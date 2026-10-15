@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::process::Command;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 const PROC_FAN: &str = "/proc/acpi/ibm/fan";
 
@@ -430,31 +430,23 @@ pub fn read_fan_level() -> Option<String> {
     parse_fan_proc(&content).remove("level")
 }
 
-#[tauri::command]
-pub async fn set_fan_speed(
-    app: tauri::AppHandle,
-    speed: String,
-) -> ApiResponse<String> {
+pub async fn apply_fan_speed(app: &tauri::AppHandle, raw_speed: &str) -> Result<String, String> {
+    let speed = match raw_speed {
+        "full" | "max" => "full-speed",
+        s => s,
+    };
+
     // Validate speed against whitelist
-    if !is_valid_speed(&speed) {
-        return ApiResponse {
-            success: false,
-            data: None,
-            error: Some(format!("Invalid fan speed: {}", speed)),
-        };
+    if !is_valid_speed(speed) {
+        return Err(format!("Invalid fan speed: {}", speed));
     }
 
     // Reads may come from a captured hardware profile; writes never may. A test
     // must not be able to believe it changed a real fan.
     if crate::hardware_root::is_simulated() {
-        return ApiResponse {
-            success: false,
-            data: None,
-            error: Some(
-                "Running against a simulated hardware profile. Fan changes are disabled."
-                    .to_string(),
-            ),
-        };
+        return Err(
+            "Running against a simulated hardware profile. Fan changes are disabled.".to_string(),
+        );
     }
 
     println!("[Fan] Setting speed to: {}", speed);
@@ -465,27 +457,24 @@ pub async fn set_fan_speed(
     // user to grant permissions sends them somewhere that cannot help.
     if let Ok(content) = crate::hardware_root::read_to_string(PROC_FAN) {
         if !fan_control_is_enabled(&content) {
-            return ApiResponse {
-                success: false,
-                data: None,
-                error: Some(
-                    "The thinkpad_acpi module was loaded without fan_control=1, so the kernel will refuse fan changes. Enable it from the Fan Control page — this is a module setting, not a permissions problem.".to_string(),
-                ),
-            };
+            return Err(
+                "The thinkpad_acpi module was loaded without fan_control=1, so the kernel will refuse fan changes. Enable it from the Fan Control page — this is a module setting, not a permissions problem.".to_string(),
+            );
         }
     }
 
     // Update target mode in supervisor so background task maintains it and keeps watchdog alive
-    let target_mode = match speed.as_str() {
+    let target_mode = match speed {
         "auto" => crate::fan_curve::FanTargetMode::Auto,
         "full-speed" => crate::fan_curve::FanTargetMode::FullSpeed,
         s => crate::fan_curve::FanTargetMode::Manual(s.to_string()),
     };
 
-    let state = app.state::<crate::fan_curve::FanCurveState>();
-    if let Ok(mut s) = state.lock() {
-        s.mode = target_mode;
-        s.curve_config.enabled = false;
+    if let Some(state) = app.try_state::<crate::fan_curve::FanCurveState>() {
+        if let Ok(mut s) = state.lock() {
+            s.mode = target_mode;
+            s.curve_config.enabled = false;
+        }
     }
 
     match write_fan_command(&command_str).await {
@@ -494,20 +483,32 @@ pub async fn set_fan_speed(
             if speed != "auto" {
                 crate::fan_curve::arm_fan_watchdog().await;
             }
-            ApiResponse {
-                success: true,
-                data: Some(format!("Fan speed set to: {}", speed)),
-                error: None,
-            }
+            let _ = app.emit("fan-speed-changed", serde_json::json!({ "speed": speed }));
+            Ok(format!("Fan speed set to: {}", speed))
         }
         Err(e) => {
             println!("[Fan] Failed to set fan speed: {}", e);
-            ApiResponse {
-                success: false,
-                data: None,
-                error: Some(e),
-            }
+            Err(e)
         }
+    }
+}
+
+#[tauri::command]
+pub async fn set_fan_speed(
+    app: tauri::AppHandle,
+    speed: String,
+) -> ApiResponse<String> {
+    match apply_fan_speed(&app, &speed).await {
+        Ok(msg) => ApiResponse {
+            success: true,
+            data: Some(msg),
+            error: None,
+        },
+        Err(e) => ApiResponse {
+            success: false,
+            data: None,
+            error: Some(e),
+        },
     }
 }
 

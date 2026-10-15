@@ -44,9 +44,9 @@ export default class ThinkUtilsExtension extends Extension {
     // Add to GNOME top panel (right side status area)
     Main.panel.addToStatusArea(this.uuid, this._indicator, 1, 'right');
 
-    // Initial metrics update and recurring 2-second timer
+    // Initial metrics update and recurring 1-second timer (synced with app)
     this._updateMetrics();
-    this._timeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
+    this._timeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
       this._updateMetrics();
       return GLib.SOURCE_CONTINUE;
     });
@@ -83,29 +83,38 @@ export default class ThinkUtilsExtension extends Extension {
     });
     menu.addMenuItem(fanHeader);
 
-    const autoItem = new PopupMenu.PopupMenuItem('  Auto Mode');
-    autoItem.connect('activate', () => {
-      this._setFanSpeed('level auto');
-    });
-    menu.addMenuItem(autoItem);
+    this._fanMenuItems = {
+      auto: new PopupMenu.PopupMenuItem('    Auto Mode'),
+      1: new PopupMenu.PopupMenuItem('    Level 1 (Quiet)'),
+      4: new PopupMenu.PopupMenuItem('    Level 4 (Medium)'),
+      7: new PopupMenu.PopupMenuItem('    Level 7 (High)'),
+      'full-speed': new PopupMenu.PopupMenuItem('    Full Speed (Maximum)')
+    };
 
-    const mediumItem = new PopupMenu.PopupMenuItem('  Level 4 (Medium)');
-    mediumItem.connect('activate', () => {
-      this._setFanSpeed('level 4');
+    this._fanMenuItems.auto.connect('activate', () => {
+      this._setFanSpeed('auto');
     });
-    menu.addMenuItem(mediumItem);
+    menu.addMenuItem(this._fanMenuItems.auto);
 
-    const highItem = new PopupMenu.PopupMenuItem('  Level 7 (High)');
-    highItem.connect('activate', () => {
-      this._setFanSpeed('level 7');
+    this._fanMenuItems[1].connect('activate', () => {
+      this._setFanSpeed('1');
     });
-    menu.addMenuItem(highItem);
+    menu.addMenuItem(this._fanMenuItems[1]);
 
-    const fullSpeedItem = new PopupMenu.PopupMenuItem('  Full Speed (Maximum)');
-    fullSpeedItem.connect('activate', () => {
-      this._setFanSpeed('level full-speed');
+    this._fanMenuItems[4].connect('activate', () => {
+      this._setFanSpeed('4');
     });
-    menu.addMenuItem(fullSpeedItem);
+    menu.addMenuItem(this._fanMenuItems[4]);
+
+    this._fanMenuItems[7].connect('activate', () => {
+      this._setFanSpeed('7');
+    });
+    menu.addMenuItem(this._fanMenuItems[7]);
+
+    this._fanMenuItems['full-speed'].connect('activate', () => {
+      this._setFanSpeed('full-speed');
+    });
+    menu.addMenuItem(this._fanMenuItems['full-speed']);
 
     menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
@@ -223,7 +232,16 @@ export default class ThinkUtilsExtension extends Extension {
 
     if (this._menuFanItem) {
       if (fan) {
-        this._menuFanItem.label.text = `Fan: ${fan.speed} RPM (Mode: ${fan.level})`;
+        let modeStr = fan.level;
+        if (fan.level === 'disengaged' || fan.level === 'full-speed') {
+          modeStr = 'Full Speed';
+        } else if (fan.level === 'auto') {
+          modeStr = 'Auto';
+        } else if (!isNaN(parseInt(fan.level, 10))) {
+          modeStr = `Level ${fan.level}`;
+        }
+        this._menuFanItem.label.text = `Fan: ${fan.speed} RPM (Mode: ${modeStr})`;
+        this._updateFanMenuSelection(fan.level);
       } else {
         this._menuFanItem.label.text = 'Fan: Unknown';
       }
@@ -239,15 +257,78 @@ export default class ThinkUtilsExtension extends Extension {
     }
   }
 
-  _setFanSpeed(command) {
-    try {
-      const helper = '/usr/local/bin/thinkutils-fan-control';
-      if (GLib.file_test(helper, GLib.FileTest.EXISTS)) {
-        GLib.spawn_command_line_async(`pkexec ${helper} "${command}"`);
-      } else {
-        GLib.spawn_command_line_async(`pkexec bash -c 'echo "${command}" > /proc/acpi/ibm/fan'`);
+  _updateFanMenuSelection(currentLevel) {
+    if (!this._fanMenuItems) {
+      return;
+    }
+    const lvl = (currentLevel || '').toString().toLowerCase();
+    const isFull = lvl === 'full-speed' || lvl === 'disengaged' || lvl === 'max' || lvl === 'full';
+
+    if (this._fanMenuItems.auto) {
+      this._fanMenuItems.auto.label.text = lvl === 'auto' ? '  ✓ Auto Mode' : '    Auto Mode';
+    }
+    if (this._fanMenuItems[1]) {
+      this._fanMenuItems[1].label.text =
+        lvl === '1' ? '  ✓ Level 1 (Quiet)' : '    Level 1 (Quiet)';
+    }
+    if (this._fanMenuItems[4]) {
+      this._fanMenuItems[4].label.text =
+        lvl === '4' ? '  ✓ Level 4 (Medium)' : '    Level 4 (Medium)';
+    }
+    if (this._fanMenuItems[7]) {
+      this._fanMenuItems[7].label.text = lvl === '7' ? '  ✓ Level 7 (High)' : '    Level 7 (High)';
+    }
+    if (this._fanMenuItems['full-speed']) {
+      this._fanMenuItems['full-speed'].label.text = isFull
+        ? '  ✓ Full Speed (Maximum)'
+        : '    Full Speed (Maximum)';
+    }
+  }
+
+  _findThinkUtilsBin() {
+    const candidates = [
+      GLib.find_program_in_path('thinkutils'),
+      GLib.build_filenamev([GLib.get_home_dir(), '.local', 'bin', 'thinkutils']),
+      '/usr/local/bin/thinkutils',
+      '/usr/bin/thinkutils'
+    ];
+    for (const candidate of candidates) {
+      if (candidate && GLib.file_test(candidate, GLib.FileTest.EXISTS)) {
+        return candidate;
       }
-      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+    }
+    return null;
+  }
+
+  _setFanSpeed(speed) {
+    try {
+      // 1. Instant checkmark feedback in the dropdown menu
+      this._updateFanMenuSelection(speed);
+
+      // 2. Route through thinkutils CLI to synchronize backend supervisor and UI
+      const thinkutilsBin = this._findThinkUtilsBin();
+      const helper = '/usr/local/bin/thinkutils-fan-control';
+
+      if (thinkutilsBin) {
+        GLib.spawn_command_line_async(`"${thinkutilsBin}" --fan ${speed}`);
+      } else if (GLib.file_test(helper, GLib.FileTest.EXISTS)) {
+        GLib.spawn_command_line_async(`pkexec ${helper} "level ${speed}"`);
+      } else {
+        GLib.spawn_command_line_async(
+          `pkexec bash -c 'echo "level ${speed}" > /proc/acpi/ibm/fan'`
+        );
+      }
+
+      // 3. Fast-sync metrics at 100ms, 600ms, and 1400ms to eliminate lag
+      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+        this._updateMetrics();
+        return GLib.SOURCE_REMOVE;
+      });
+      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 600, () => {
+        this._updateMetrics();
+        return GLib.SOURCE_REMOVE;
+      });
+      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1400, () => {
         this._updateMetrics();
         return GLib.SOURCE_REMOVE;
       });
@@ -258,21 +339,22 @@ export default class ThinkUtilsExtension extends Extension {
 
   _launchApp() {
     try {
-      const [ok, out] = GLib.spawn_command_line_sync('pgrep -x thinkutils');
-      if (ok && out && out.length > 0) {
-        GLib.spawn_command_line_async('thinkutils');
-      } else {
-        try {
-          const appInfo = Gio.DesktopAppInfo.new('thinkutils.desktop');
-          if (appInfo) {
-            appInfo.launch([], null);
-            return;
-          }
-        } catch (_err) {
-          // Desktop app fallback
-        }
-        GLib.spawn_command_line_async('thinkutils');
+      const thinkutilsBin = this._findThinkUtilsBin();
+      if (thinkutilsBin) {
+        GLib.spawn_command_line_async(`"${thinkutilsBin}"`);
+        return;
       }
+
+      try {
+        const appInfo = Gio.DesktopAppInfo.new('thinkutils.desktop');
+        if (appInfo) {
+          appInfo.launch([], null);
+          return;
+        }
+      } catch (_err) {
+        // Desktop app fallback
+      }
+      GLib.spawn_command_line_async('thinkutils');
     } catch (e) {
       console.error('[ThinkUtils Extension] Error launching app:', e);
     }
@@ -295,5 +377,6 @@ export default class ThinkUtilsExtension extends Extension {
     this._menuTempItem = null;
     this._menuFanItem = null;
     this._menuBatteryItem = null;
+    this._fanMenuItems = null;
   }
 }

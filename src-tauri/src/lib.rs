@@ -121,7 +121,18 @@ fn report_frontend_error(msg: String) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if let Some(fan_idx) = args.iter().position(|a| a == "--fan" || a == "--set-fan") {
+                if let Some(target_speed) = args.get(fan_idx + 1) {
+                    let speed = target_speed.clone();
+                    let app_handle = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let _ = crate::fan_control::apply_fan_speed(&app_handle, &speed).await;
+                    });
+                    return;
+                }
+            }
+
             // When a second instance is launched, focus the existing window
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
@@ -191,6 +202,19 @@ pub fn run() {
                     curve_config: saved_config,
                 }));
             app.manage(fan_curve_state);
+
+            // Handle standalone CLI fan speed argument if started headlessly
+            let cli_args: Vec<String> = std::env::args().collect();
+            if let Some(fan_idx) = cli_args.iter().position(|a| a == "--fan" || a == "--set-fan") {
+                if let Some(target_speed) = cli_args.get(fan_idx + 1) {
+                    let speed = target_speed.clone();
+                    let app_handle = app.handle().clone();
+                    tauri::async_runtime::block_on(async move {
+                        let _ = crate::fan_control::apply_fan_speed(&app_handle, &speed).await;
+                    });
+                    std::process::exit(0);
+                }
+            }
 
             // Initialize MCP server state (off by default)
             let mcp_state =
