@@ -31,9 +31,13 @@ echo "✓ Installed executable: $HOME/.local/bin/thinkutils"
 
 # 2. Install desktop launcher
 cp "thinkutils.desktop" "$HOME/.local/share/applications/thinkutils.desktop"
+sed -i "s|^Exec=.*|Exec=$HOME/.local/bin/thinkutils|" "$HOME/.local/share/applications/thinkutils.desktop"
+sed -i "s|^Icon=.*|Icon=$HOME/.local/share/icons/thinkutils.png|" "$HOME/.local/share/applications/thinkutils.desktop"
+cp "$HOME/.local/share/applications/thinkutils.desktop" "$HOME/.local/share/applications/com.vietanhnv.thinkutils.desktop"
 echo "✓ Installed desktop entry: $HOME/.local/share/applications/thinkutils.desktop"
 
 # 3. Install icons
+cp "src-tauri/icons/icon.png" "$HOME/.local/share/icons/thinkutils.png"
 cp "src-tauri/icons/32x32.png" "$HOME/.local/share/icons/hicolor/32x32/apps/thinkutils.png"
 cp "src-tauri/icons/128x128.png" "$HOME/.local/share/icons/hicolor/128x128/apps/thinkutils.png"
 cp "src-tauri/icons/icon.png" "$HOME/.local/share/icons/hicolor/512x512/apps/thinkutils.png"
