@@ -12,6 +12,11 @@ export default class ThinkUtilsExtension extends Extension {
   enable() {
     this._indicator = new PanelMenu.Button(0.0, this.metadata.name, false);
 
+    // Target fan mode selected by user (or synchronized from hardware/settings)
+    this._targetMode = null;
+    this._lastWatchdogArm = 0;
+    this._lastUserCommandTime = 0;
+
     // Panel display container
     this._panelBox = new St.BoxLayout({
       style_class: 'panel-status-menu-box',
@@ -44,9 +49,10 @@ export default class ThinkUtilsExtension extends Extension {
     // Add to GNOME top panel (right side status area)
     Main.panel.addToStatusArea(this.uuid, this._indicator, 1, 'right');
 
-    // Initial metrics update and recurring 1-second timer (synced with app)
+    // Initial metrics update and recurring 1-second supervisor timer
     this._updateMetrics();
     this._timeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
+      this._superviseFan();
       this._updateMetrics();
       return GLib.SOURCE_CONTINUE;
     });
@@ -197,6 +203,46 @@ export default class ThinkUtilsExtension extends Extension {
     return null;
   }
 
+  _superviseFan() {
+    if (!this._targetMode || this._targetMode === 'auto') {
+      return;
+    }
+
+    const now = GLib.get_monotonic_time();
+    const helper = this._findHelper();
+    if (!helper) {
+      return;
+    }
+
+    // 1. Keep the firmware watchdog alive every ~14 seconds (watchdog timeout is 30s)
+    // 1 second = 1,000,000 microseconds in monotonic time
+    const elapsedSinceArm = (now - (this._lastWatchdogArm || 0)) / 1000000;
+    if (elapsedSinceArm >= 14) {
+      GLib.spawn_command_line_async(`pkexec ${helper} "watchdog 30"`);
+      this._lastWatchdogArm = now;
+    }
+
+    // 2. EC Revert Protection: if ThinkPad EC reset fan back to auto or another level, re-assert!
+    // Give 2 seconds grace period right after a user click
+    const sinceCommand = (now - (this._lastUserCommandTime || 0)) / 1000000;
+    if (sinceCommand >= 2) {
+      const fan = this._readFanInfo();
+      if (fan && fan.level) {
+        const hwLevel = (fan.level || '').toString().toLowerCase();
+        const target = (this._targetMode || '').toString().toLowerCase();
+        const isMatch =
+          (target === 'full-speed' && (hwLevel === 'full-speed' || hwLevel === 'disengaged')) ||
+          hwLevel === target;
+        if (!isMatch) {
+          // Hardware level reverted (e.g. EC auto reset or thermal step)! Re-assert target!
+          GLib.spawn_command_line_async(`pkexec ${helper} "level ${this._targetMode}"`);
+          GLib.spawn_command_line_async(`pkexec ${helper} "watchdog 30"`);
+          this._lastWatchdogArm = now;
+        }
+      }
+    }
+  }
+
   _updateMetrics() {
     const temp = this._readCpuTemp();
     const fan = this._readFanInfo();
@@ -250,7 +296,28 @@ export default class ThinkUtilsExtension extends Extension {
           modeStr = `Level ${fan.level}`;
         }
         this._menuFanItem.label.text = `Fan: ${fan.speed} RPM (Mode: ${modeStr})`;
-        this._updateFanMenuSelection(fan.level);
+
+        // Menu selection: during the 3 seconds after a user command, trust targetMode
+        // to prevent premature 100ms stale read from jumping back to auto!
+        const sinceCommand =
+          (GLib.get_monotonic_time() - (this._lastUserCommandTime || 0)) / 1000000;
+        if (sinceCommand < 3 && this._targetMode) {
+          this._updateFanMenuSelection(this._targetMode);
+        } else {
+          // Outside the transition window: if targetMode was null or user changed it in the app,
+          // synchronize targetMode with hardware
+          if (!this._targetMode || sinceCommand >= 5) {
+            const hwLevel = (fan.level || '').toString().toLowerCase();
+            const target = (this._targetMode || '').toString().toLowerCase();
+            const isMatch =
+              (target === 'full-speed' && (hwLevel === 'full-speed' || hwLevel === 'disengaged')) ||
+              hwLevel === target;
+            if (!isMatch && hwLevel !== 'unknown') {
+              this._targetMode = hwLevel === 'disengaged' ? 'full-speed' : hwLevel;
+            }
+          }
+          this._updateFanMenuSelection(this._targetMode || fan.level);
+        }
       } else {
         this._menuFanItem.label.text = 'Fan: Unknown';
       }
@@ -294,6 +361,20 @@ export default class ThinkUtilsExtension extends Extension {
     }
   }
 
+  _findHelper() {
+    const candidates = [
+      '/usr/lib/thinkutils/thinkutils-fan-control',
+      '/usr/libexec/thinkutils/thinkutils-fan-control',
+      '/usr/local/bin/thinkutils-fan-control'
+    ];
+    for (const candidate of candidates) {
+      if (GLib.file_test(candidate, GLib.FileTest.EXISTS)) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
   _findThinkUtilsBin() {
     const candidates = [
       GLib.find_program_in_path('thinkutils'),
@@ -309,35 +390,91 @@ export default class ThinkUtilsExtension extends Extension {
     return null;
   }
 
+  _saveSettingsFanMode(speed) {
+    try {
+      const settingsPath = GLib.build_filenamev([
+        GLib.get_user_data_dir(),
+        'com.vietanhnv.thinkutils',
+        'settings.json'
+      ]);
+      if (!GLib.file_test(settingsPath, GLib.FileTest.EXISTS)) {
+        return;
+      }
+      const [ok, data] = GLib.file_get_contents(settingsPath);
+      if (!ok) {
+        return;
+      }
+      const jsonStr = new TextDecoder().decode(data);
+      const settings = JSON.parse(jsonStr);
+      if (!settings.app_settings) {
+        settings.app_settings = {};
+      }
+      if (speed === 'auto') {
+        settings.app_settings.fan_mode = 'auto';
+        settings.app_settings.fan_curve_enabled = false;
+      } else if (speed === 'full-speed' || speed === 'full' || speed === 'max') {
+        settings.app_settings.fan_mode = 'full';
+        settings.app_settings.fan_curve_enabled = false;
+      } else if (!isNaN(parseInt(speed, 10))) {
+        settings.app_settings.fan_mode = 'manual';
+        settings.app_settings.fan_level = parseInt(speed, 10);
+        settings.app_settings.fan_curve_enabled = false;
+      }
+      const updatedJson = JSON.stringify(settings, null, 2);
+      GLib.file_set_contents(settingsPath, new TextEncoder().encode(updatedJson));
+    } catch (_err) {
+      // Non-fatal if settings file cannot be updated
+    }
+  }
+
   _setFanSpeed(speed) {
     try {
+      const now = GLib.get_monotonic_time();
+      this._targetMode = speed;
+      this._lastUserCommandTime = now;
+      this._lastWatchdogArm = now;
+
       // 1. Instant checkmark feedback in the dropdown menu
       this._updateFanMenuSelection(speed);
 
-      // 2. Route through thinkutils CLI to synchronize backend supervisor and UI
-      const thinkutilsBin = this._findThinkUtilsBin();
-      const helper = '/usr/local/bin/thinkutils-fan-control';
-
-      if (thinkutilsBin) {
-        GLib.spawn_command_line_async(`"${thinkutilsBin}" --fan ${speed}`);
-      } else if (GLib.file_test(helper, GLib.FileTest.EXISTS)) {
+      // 2. Direct, low-latency execution via dedicated helper
+      const helper = this._findHelper();
+      if (helper) {
         GLib.spawn_command_line_async(`pkexec ${helper} "level ${speed}"`);
+        if (speed !== 'auto') {
+          GLib.spawn_command_line_async(`pkexec ${helper} "watchdog 30"`);
+        }
       } else {
         GLib.spawn_command_line_async(
           `pkexec bash -c 'echo "level ${speed}" > /proc/acpi/ibm/fan'`
         );
+        if (speed !== 'auto') {
+          GLib.spawn_command_line_async(`pkexec bash -c 'echo "watchdog 30" > /proc/acpi/ibm/fan'`);
+        }
       }
 
-      // 3. Fast-sync metrics at 100ms, 600ms, and 1400ms to eliminate lag
-      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+      // 3. If ThinkUtils desktop app is running, notify it so its UI stays in sync
+      const thinkutilsBin = this._findThinkUtilsBin();
+      if (thinkutilsBin) {
+        try {
+          const [ok, stdout] = GLib.spawn_command_line_sync('pgrep -x thinkutils');
+          if (ok && stdout && stdout.length > 0) {
+            GLib.spawn_command_line_async(`"${thinkutilsBin}" --fan ${speed}`);
+          }
+        } catch (_err) {
+          // pgrep fallback
+        }
+      }
+
+      // 4. Save to persistent settings so next app launch remembers the mode
+      this._saveSettingsFanMode(speed);
+
+      // 5. Fast metric sync after settling (300ms and 1000ms)
+      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
         this._updateMetrics();
         return GLib.SOURCE_REMOVE;
       });
-      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 600, () => {
-        this._updateMetrics();
-        return GLib.SOURCE_REMOVE;
-      });
-      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1400, () => {
+      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
         this._updateMetrics();
         return GLib.SOURCE_REMOVE;
       });
@@ -373,6 +510,14 @@ export default class ThinkUtilsExtension extends Extension {
     if (this._timeoutId) {
       GLib.Source.remove(this._timeoutId);
       this._timeoutId = null;
+    }
+
+    // Cleanly restore fan to firmware automatic control on extension unload if it was being steered
+    if (this._targetMode && this._targetMode !== 'auto') {
+      const helper = this._findHelper();
+      if (helper) {
+        GLib.spawn_command_line_async(`pkexec ${helper} "level auto"`);
+      }
     }
 
     if (this._indicator) {

@@ -33,20 +33,8 @@ export function setupFanControl() {
       if (!sp) {
         return;
       }
-      setState('lastFanSpeedSet', null);
-      if (sp === 'auto') {
-        setFanMode('auto');
-      } else if (sp === 'full-speed' || sp === 'full' || sp === 'max') {
-        setFanMode('full');
-      } else {
-        if (elements.slider) {
-          elements.slider.value = sp;
-        }
-        if (elements.sliderValue) {
-          elements.sliderValue.textContent = sp;
-        }
-        setFanMode('manual', sp);
-      }
+      setState('lastFanSpeedSet', sp);
+      updateUIFromFanLevel(sp);
     });
   }
 }
