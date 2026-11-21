@@ -32,11 +32,11 @@ base64 = "0.21"
 url = "2.5"
 rand = "0.8"
 lazy_static = "1.4"
-# rmcp 2.x. The SSE server transport was removed upstream; Streamable HTTP is
-# the only server transport now, and it is also where RUSTSEC-2026-0189's fix
-# landed -- allowed_hosts/allowed_origins, which is what closes the DNS-rebinding
-# and cross-origin CSRF vector against loopback.
-rmcp = { version = "2", features = ["server", "server-side-http", "transport-streamable-http-server", "macros", "schemars"] }
+# rmcp 3.9+. Streamable HTTP is the only server transport; its config still
+# carries allowed_hosts/allowed_origins, which close the DNS-rebinding and
+# cross-origin CSRF vector against loopback. 3.9 also clears the 2026 OAuth SSRF
+# and unbounded-response advisories that affected 2.x.
+rmcp = { version = "3.9", features = ["server", "server-side-http", "transport-streamable-http-server", "macros", "schemars"] }
 schemars = "0.8"
 tokio-util = "0.7"
 axum = "0.8.9"

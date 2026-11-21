@@ -1,5 +1,5 @@
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::ServerInfo;
+use rmcp::model::{ServerCapabilities, ServerConfig};
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::transport::streamable_http_server::{StreamableHttpServerConfig, StreamableHttpService};
 use rmcp::{schemars, tool, tool_handler, tool_router, ServerHandler};
@@ -343,16 +343,13 @@ fn build_http_config(port: u16, ct: CancellationToken) -> StreamableHttpServerCo
 /// the client shows to its model.
 #[tool_handler]
 impl ServerHandler for ThinkUtilsHandler {
-    fn get_info(&self) -> ServerInfo {
-        // ServerInfo is non-exhaustive in rmcp 2, so build from Default and set
-        // the one field we care about.
-        let mut info = ServerInfo::default();
-        info.instructions = Some(
+    fn get_info(&self) -> ServerConfig {
+        // Advertise tools explicitly and attach the instructions clients show
+        // to their model. `ServerInfo` is a deprecated alias in rmcp 3.
+        ServerConfig::new(ServerCapabilities::builder().enable_tools().build()).with_instructions(
             "ThinkUtils MCP Server - monitor and control ThinkPad hardware: fan speed and \
-             status, CPU temperature and governor, battery info and charge thresholds."
-                .into(),
-        );
-        info
+             status, CPU temperature and governor, battery info and charge thresholds.",
+        )
     }
 }
 
