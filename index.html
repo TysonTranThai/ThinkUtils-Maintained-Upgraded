@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head><title>ThinkUtils APT Repository</title></head>
+<body>
+<h1>ThinkUtils APT Repository</h1>
+<p><strong>This repository is not signed.</strong> The command below uses
+<code>[trusted=yes]</code>, which disables apt's signature checking.</p>
+<pre>
+echo "deb [trusted=yes] https://gh.vietanh.dev/ThinkUtils/apt ./" | sudo tee /etc/apt/sources.list.d/thinkutils.list
+sudo apt update
+sudo apt install thinkutils
+</pre>
+</body>
+</html>
