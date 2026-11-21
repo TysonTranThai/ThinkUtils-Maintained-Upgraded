@@ -4340,6 +4340,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "url",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

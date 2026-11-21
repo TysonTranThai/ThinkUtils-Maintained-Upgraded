@@ -8,7 +8,19 @@ pub struct ApiResponse<T> {
 }
 
 #[tauri::command]
+// The Windows branch returns early; the Linux body is kept in the same
+// function so the command signature stays in one place.
+#[allow(unreachable_code)]
 pub async fn authenticate_once() -> ApiResponse<String> {
+    #[cfg(target_os = "windows")]
+    {
+        return ApiResponse {
+            success: false,
+            data: None,
+            error: Some("One-time polkit authentication is not used on Windows.".to_string()),
+        };
+    }
+
     println!("[Auth] Requesting one-time authentication...");
 
     // Create a simple script that does nothing but succeeds

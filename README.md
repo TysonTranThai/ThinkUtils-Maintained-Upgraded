@@ -131,6 +131,8 @@ chmod +x thinkutils_*.AppImage
 ### 🪟 Windows 10 / 11
 Download `thinkutils.exe` or the Windows installer from [**GitHub Releases**](https://github.com/TysonTranThai/ThinkUtils-Maintained-Upgraded/releases) and run directly.
 
+Windows support is intentionally narrower than Linux: system monitoring, battery state, power-plan switching and Microsoft Defender scans are native, while fan control, charge thresholds, CPU governors, turbo boost, biometrics and the MCP server are unavailable and are labelled as such in the UI. See the [cross-platform compatibility matrix](./docs/development/cross-platform.md) for the full list.
+
 ---
 
 ## ⚙️ ThinkPad Hardware Setup

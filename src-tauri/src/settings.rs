@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
+
+#[cfg(not(target_os = "windows"))]
+use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -112,90 +115,99 @@ pub fn load_raw_app_settings(app: &AppHandle) -> AppSettings {
 
 /// Synchronize settings with live hardware, kernel sysfs, and background supervisor state
 pub fn sync_settings_with_system(app: &AppHandle, mut settings: AppSettings) -> AppSettings {
-    // 1. Fan curve & supervisor mode synchronization
-    let curve_config = crate::fan_curve::load_config_from_store(app);
-    if !curve_config.points.is_empty() {
-        settings.fan_curve_points = curve_config
-            .points
-            .into_iter()
-            .map(|p| CurvePoint {
-                temp: p.temp,
-                level: p.level,
-            })
-            .collect();
-    }
-    settings.fan_curve_enabled = curve_config.enabled;
+    // The live fan/battery/governor/turbo reads are Linux-only. On Windows the
+    // stored values are left alone; the power profile below is the one setting
+    // that has a real Windows equivalent.
+    #[cfg(target_os = "windows")]
+    let _ = app;
 
-    if curve_config.enabled {
-        settings.fan_mode = "curve".to_string();
-    } else if let Some(fan_state) = app.try_state::<crate::fan_curve::FanCurveState>() {
-        if let Ok(s) = fan_state.lock() {
-            match &s.mode {
-                crate::fan_curve::FanTargetMode::Auto => {
-                    settings.fan_mode = "auto".to_string();
-                }
-                crate::fan_curve::FanTargetMode::FullSpeed => {
-                    settings.fan_mode = "full".to_string();
-                }
-                crate::fan_curve::FanTargetMode::Manual(lvl) => {
-                    settings.fan_mode = "manual".to_string();
-                    if let Ok(l) = lvl.parse::<i32>() {
-                        settings.fan_level = l;
+    #[cfg(not(target_os = "windows"))]
+    {
+        // 1. Fan curve & supervisor mode synchronization
+        let curve_config = crate::fan_curve::load_config_from_store(app);
+        if !curve_config.points.is_empty() {
+            settings.fan_curve_points = curve_config
+                .points
+                .into_iter()
+                .map(|p| CurvePoint {
+                    temp: p.temp,
+                    level: p.level,
+                })
+                .collect();
+        }
+        settings.fan_curve_enabled = curve_config.enabled;
+
+        if curve_config.enabled {
+            settings.fan_mode = "curve".to_string();
+        } else if let Some(fan_state) = app.try_state::<crate::fan_curve::FanCurveState>() {
+            if let Ok(s) = fan_state.lock() {
+                match &s.mode {
+                    crate::fan_curve::FanTargetMode::Auto => {
+                        settings.fan_mode = "auto".to_string();
+                    }
+                    crate::fan_curve::FanTargetMode::FullSpeed => {
+                        settings.fan_mode = "full".to_string();
+                    }
+                    crate::fan_curve::FanTargetMode::Manual(lvl) => {
+                        settings.fan_mode = "manual".to_string();
+                        if let Ok(l) = lvl.parse::<i32>() {
+                            settings.fan_level = l;
+                        }
+                    }
+                    crate::fan_curve::FanTargetMode::Curve => {
+                        settings.fan_mode = "curve".to_string();
+                        settings.fan_curve_enabled = true;
                     }
                 }
-                crate::fan_curve::FanTargetMode::Curve => {
-                    settings.fan_mode = "curve".to_string();
-                    settings.fan_curve_enabled = true;
+            }
+        } else if let Ok(proc_fan) = crate::hardware_root::read_to_string("/proc/acpi/ibm/fan") {
+            for line in proc_fan.lines() {
+                if let Some(rest) = line.strip_prefix("level:") {
+                    let lvl = rest.trim();
+                    if lvl == "disengaged" || lvl == "full-speed" {
+                        settings.fan_mode = "full".to_string();
+                    } else if lvl == "auto" {
+                        settings.fan_mode = "auto".to_string();
+                    } else if let Ok(n) = lvl.parse::<i32>() {
+                        settings.fan_mode = "manual".to_string();
+                        settings.fan_level = n;
+                    }
+                    break;
                 }
             }
         }
-    } else if let Ok(proc_fan) = crate::hardware_root::read_to_string("/proc/acpi/ibm/fan") {
-        for line in proc_fan.lines() {
-            if let Some(rest) = line.strip_prefix("level:") {
-                let lvl = rest.trim();
-                if lvl == "disengaged" || lvl == "full-speed" {
-                    settings.fan_mode = "full".to_string();
-                } else if lvl == "auto" {
-                    settings.fan_mode = "auto".to_string();
-                } else if let Ok(n) = lvl.parse::<i32>() {
-                    settings.fan_mode = "manual".to_string();
-                    settings.fan_level = n;
+
+        // 2. Battery charge thresholds from live sysfs
+        let bat_resp = crate::battery::get_battery_thresholds();
+        if bat_resp.success {
+            if let Some(thresholds) = bat_resp.data {
+                if thresholds.stop > 0 {
+                    settings.battery_start_threshold = thresholds.start as i32;
+                    settings.battery_stop_threshold = thresholds.stop as i32;
                 }
-                break;
+            }
+        }
+
+        // 3. CPU governor from live sysfs
+        let cpu_resp = crate::performance::get_cpu_info();
+        if cpu_resp.success {
+            if let Some(cpu_info) = cpu_resp.data {
+                if !cpu_info.governor.is_empty() {
+                    settings.cpu_governor = cpu_info.governor;
+                }
+            }
+        }
+
+        // 4. Turbo Boost status from live sysfs
+        let turbo_resp = crate::performance::get_turbo_boost_status();
+        if turbo_resp.success {
+            if let Some(turbo_enabled) = turbo_resp.data {
+                settings.turbo_boost_enabled = turbo_enabled;
             }
         }
     }
 
-    // 2. Battery charge thresholds from live sysfs
-    let bat_resp = crate::battery::get_battery_thresholds();
-    if bat_resp.success {
-        if let Some(thresholds) = bat_resp.data {
-            if thresholds.stop > 0 {
-                settings.battery_start_threshold = thresholds.start as i32;
-                settings.battery_stop_threshold = thresholds.stop as i32;
-            }
-        }
-    }
-
-    // 3. CPU governor from live sysfs
-    let cpu_resp = crate::performance::get_cpu_info();
-    if cpu_resp.success {
-        if let Some(cpu_info) = cpu_resp.data {
-            if !cpu_info.governor.is_empty() {
-                settings.cpu_governor = cpu_info.governor;
-            }
-        }
-    }
-
-    // 4. Turbo Boost status from live sysfs
-    let turbo_resp = crate::performance::get_turbo_boost_status();
-    if turbo_resp.success {
-        if let Some(turbo_enabled) = turbo_resp.data {
-            settings.turbo_boost_enabled = turbo_enabled;
-        }
-    }
-
-    // 5. Power Profile from powerprofilesctl / TLP
+    // 5. Power Profile from powerprofilesctl / TLP (Linux) or powercfg (Windows)
     let profile_resp = crate::performance::get_power_profile();
     if profile_resp.success {
         if let Some(profile_data) = profile_resp.data {

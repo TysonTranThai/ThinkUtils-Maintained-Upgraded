@@ -3,6 +3,7 @@ const { invoke } = window.__TAURI__.core;
 import { elements } from '../dom.js';
 import { showStatus, escapeHtml } from '../utils.js';
 import { setState, getState } from '../state.js';
+import { isAvailable } from '../capabilities.js';
 
 export function setupBatteryHandlers() {
   if (elements.thresholdStart) {
@@ -209,6 +210,11 @@ function displayBatteries(batteries, isAcOnline = false) {
 }
 
 async function applyBatteryThresholds() {
+  if (!isAvailable('battery_thresholds')) {
+    showStatus('Charge thresholds are not supported on this machine.', 'error');
+    return;
+  }
+
   const start = parseInt(elements.thresholdStart.value);
   const stop = parseInt(elements.thresholdStop.value);
 

@@ -7,8 +7,25 @@ import {
   bindOnce,
   isControlBusy
 } from '../hardwareControls.js';
+import { isAvailable } from '../capabilities.js';
+
+function markUnavailableOnHome() {
+  if (isAvailable('fan')) {
+    return;
+  }
+  const fanSpeed = document.getElementById('home-fan-speed');
+  const fanMode = document.getElementById('home-fan-mode');
+  if (fanSpeed) {
+    fanSpeed.textContent = 'Unavailable';
+  }
+  if (fanMode) {
+    fanMode.textContent = 'Temperature only';
+  }
+}
 
 export async function updateHomeView() {
+  markUnavailableOnHome();
+
   try {
     const response = await invoke('get_sensor_data');
 
@@ -127,6 +144,9 @@ export async function updateHomeView() {
       }
 
       document.querySelectorAll('.home-setting-btn[data-profile]').forEach((btn) => {
+        // A power plan can be hidden by the OS or by policy. Do not offer a
+        // button that powercfg will refuse to activate.
+        btn.hidden = !profileResponse.data.available.includes(btn.dataset.profile);
         btn.classList.remove('active');
         if (btn.dataset.profile === profileResponse.data.current) {
           btn.classList.add('active');
@@ -143,7 +163,10 @@ export async function updateHomeView() {
       const govEl = document.getElementById('home-cpu-governor');
       if (govEl) {
         govEl.textContent =
-          cpuResponse.data.governor.charAt(0).toUpperCase() + cpuResponse.data.governor.slice(1);
+          cpuResponse.data.governor === 'windows'
+            ? 'Windows-managed'
+            : cpuResponse.data.governor.charAt(0).toUpperCase() +
+              cpuResponse.data.governor.slice(1);
       }
 
       document.querySelectorAll('.home-setting-btn[data-governor]').forEach((btn) => {

@@ -40,3 +40,22 @@ rmcp = { version = "2", features = ["server", "server-side-http", "transport-str
 schemars = "0.8"
 tokio-util = "0.7"
 axum = "0.8.9"
+
+# Windows-only native APIs. Used instead of shelling out to PowerShell every
+# couple of seconds for monitoring and battery reads; PowerShell is reserved for
+# one-shot WMI/CIM queries and Defender actions.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_NetworkManagement_Ndis",
+    "Win32_Networking_WinSock",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Power",
+    "Win32_System_ProcessStatus",
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_System_WindowsProgramming",
+    "Wdk_System_SystemInformation",
+] }

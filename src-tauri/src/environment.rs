@@ -7,6 +7,8 @@
 //! install is silently ignored.
 
 use serde::{Deserialize, Serialize};
+
+#[cfg(not(target_os = "windows"))]
 use std::fs;
 use std::process::Command;
 
@@ -284,6 +286,8 @@ pub enum InstallChannel {
     Snap,
     /// Cargo/dev build.
     Development,
+    /// Windows installer (MSI/NSIS) or portable build.
+    Windows,
 }
 
 pub fn detect_install_channel(
@@ -421,69 +425,97 @@ fn command_exists(name: &str) -> bool {
 
 #[tauri::command]
 pub fn get_system_report() -> ApiResponse<SystemReport> {
-    let distro = parse_os_release(&fs::read_to_string("/etc/os-release").unwrap_or_default());
-    let package_manager = detect_package_manager(&distro);
-
-    let polkit_raw = Command::new("pkaction")
-        .arg("--version")
-        .output()
-        .ok()
-        .map(|o| {
-            let mut s = String::from_utf8_lossy(&o.stdout).to_string();
-            s.push_str(&String::from_utf8_lossy(&o.stderr));
-            s
-        });
-    let polkit_parsed = polkit_raw.as_deref().and_then(parse_polkit_version);
-
-    let exe_path = std::env::current_exe()
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_default();
-    let install_channel = detect_install_channel(
-        &exe_path,
-        std::env::var("APPIMAGE").ok().as_deref(),
-        std::env::var("SNAP").ok().as_deref(),
-        std::path::Path::new("/.flatpak-info").exists(),
-    );
-
-    let fan_proc = fs::read_to_string("/proc/acpi/ibm/fan").unwrap_or_default();
-    let fan_control_enabled = fan_proc
-        .lines()
-        .any(|l| l.trim_start().starts_with("commands:"));
-    let modprobe_conf_present = fs::read_to_string(crate::fan_control::MODPROBE_CONF_PATH)
-        .map(|c| c.contains("fan_control=1"))
-        .unwrap_or(false);
-
-    let tools = survey_tools(&package_manager, &|bin| command_exists(bin));
-
-    let steps = build_setup_steps(
-        &package_manager,
-        polkit_supports_js_rules(polkit_parsed),
-        &install_channel,
-        command_exists("sensors"),
-        command_exists("pkexec"),
-        fan_control_enabled,
-        modprobe_conf_present,
-        crate::fan_control::helper_path().is_some(),
-    );
-
-    ApiResponse {
-        success: true,
-        data: Some(SystemReport {
-            distro,
-            package_manager,
-            polkit_version: polkit_parsed.map(|(a, b)| {
-                if a == 0 {
-                    format!("{}.{}", a, b)
-                } else {
-                    a.to_string()
-                }
+    #[cfg(target_os = "windows")]
+    {
+        // Windows has no polkit, package manager or thinkpad_acpi module. The
+        // setup guidance the Linux report drives does not apply, so the report
+        // is explicit about that instead of inventing missing steps.
+        return ApiResponse {
+            success: true,
+            data: Some(SystemReport {
+                distro: DistroInfo {
+                    id: "windows".to_string(),
+                    id_like: Vec::new(),
+                    version_id: String::new(),
+                    pretty_name: "Windows".to_string(),
+                },
+                package_manager: PackageManager::Unknown,
+                polkit_version: None,
+                polkit_supports_js_rules: None,
+                install_channel: InstallChannel::Windows,
+                tools: Vec::new(),
+                steps: Vec::new(),
             }),
-            polkit_supports_js_rules: polkit_supports_js_rules(polkit_parsed),
-            install_channel,
-            tools,
-            steps,
-        }),
-        error: None,
+            error: None,
+        };
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let distro = parse_os_release(&fs::read_to_string("/etc/os-release").unwrap_or_default());
+        let package_manager = detect_package_manager(&distro);
+
+        let polkit_raw = Command::new("pkaction")
+            .arg("--version")
+            .output()
+            .ok()
+            .map(|o| {
+                let mut s = String::from_utf8_lossy(&o.stdout).to_string();
+                s.push_str(&String::from_utf8_lossy(&o.stderr));
+                s
+            });
+        let polkit_parsed = polkit_raw.as_deref().and_then(parse_polkit_version);
+
+        let exe_path = std::env::current_exe()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let install_channel = detect_install_channel(
+            &exe_path,
+            std::env::var("APPIMAGE").ok().as_deref(),
+            std::env::var("SNAP").ok().as_deref(),
+            std::path::Path::new("/.flatpak-info").exists(),
+        );
+
+        let fan_proc = fs::read_to_string("/proc/acpi/ibm/fan").unwrap_or_default();
+        let fan_control_enabled = fan_proc
+            .lines()
+            .any(|l| l.trim_start().starts_with("commands:"));
+        let modprobe_conf_present = fs::read_to_string(crate::fan_control::MODPROBE_CONF_PATH)
+            .map(|c| c.contains("fan_control=1"))
+            .unwrap_or(false);
+
+        let tools = survey_tools(&package_manager, &|bin| command_exists(bin));
+
+        let steps = build_setup_steps(
+            &package_manager,
+            polkit_supports_js_rules(polkit_parsed),
+            &install_channel,
+            command_exists("sensors"),
+            command_exists("pkexec"),
+            fan_control_enabled,
+            modprobe_conf_present,
+            crate::fan_control::helper_path().is_some(),
+        );
+
+        ApiResponse {
+            success: true,
+            data: Some(SystemReport {
+                distro,
+                package_manager,
+                polkit_version: polkit_parsed.map(|(a, b)| {
+                    if a == 0 {
+                        format!("{}.{}", a, b)
+                    } else {
+                        a.to_string()
+                    }
+                }),
+                polkit_supports_js_rules: polkit_supports_js_rules(polkit_parsed),
+                install_channel,
+                tools,
+                steps,
+            }),
+            error: None,
+        }
     }
 }
 

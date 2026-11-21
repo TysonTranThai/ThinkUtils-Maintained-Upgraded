@@ -1,6 +1,10 @@
 <div class="settings-container">
   <!-- GNOME Top Bar Indicator Section -->
-  <div class="card settings-extension-card" id="card-gnome-extension">
+  <div
+    class="card settings-extension-card"
+    id="card-gnome-extension"
+    data-capability="gnome_extension"
+  >
     <div class="card-header">
       <div class="card-icon extension-icon">
         <svg
@@ -207,7 +211,7 @@
 
     <div class="settings-grid">
       <!-- Fan Group -->
-      <div class="settings-group">
+      <div class="settings-group" data-capability-controls="fan">
         <h4>Fan Control</h4>
         <div class="info-list">
           <div class="info-item">
@@ -226,7 +230,7 @@
       </div>
 
       <!-- Battery Group -->
-      <div class="settings-group">
+      <div class="settings-group" data-capability-controls="battery_thresholds">
         <h4>Battery Health</h4>
         <div class="info-list">
           <div class="info-item">
@@ -244,11 +248,11 @@
       <div class="settings-group">
         <h4>Performance</h4>
         <div class="info-list">
-          <div class="info-item">
+          <div class="info-item" data-capability="performance_governor" data-capability-silent>
             <span class="info-label">CPU Governor</span>
             <span class="info-value" id="cfg-cpu-governor">powersave</span>
           </div>
-          <div class="info-item">
+          <div class="info-item" data-capability="performance_turbo" data-capability-silent>
             <span class="info-label">Turbo Boost</span>
             <span class="info-value" id="cfg-turbo-boost">Enabled</span>
           </div>
@@ -275,7 +279,7 @@
             <span class="info-label">Minimize to Tray</span>
             <span class="info-value" id="cfg-minimize-tray">Enabled</span>
           </div>
-          <div class="info-item">
+          <div class="info-item" data-capability="gnome_extension" data-capability-silent>
             <span class="info-label">GNOME Top Bar</span>
             <span class="info-value" id="cfg-gnome-extension">--</span>
           </div>

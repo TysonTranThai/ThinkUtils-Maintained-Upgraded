@@ -1,18 +1,32 @@
 mod auth;
 mod battery;
 pub mod biometrics;
+pub mod capabilities;
 pub mod environment;
 pub mod fan_control;
+#[cfg(target_os = "windows")]
+mod fan_control_windows;
 mod fan_curve;
 pub mod gnome_extension;
 pub mod hardware_root;
 mod mcp;
 mod monitor;
+#[cfg(not(target_os = "windows"))]
+mod monitor_linux;
+#[cfg(target_os = "windows")]
+mod monitor_windows;
 pub mod pam;
 mod performance;
+#[cfg(target_os = "windows")]
+mod performance_windows;
 mod permissions;
+pub mod platform;
 mod privileged;
 mod security;
+#[cfg(not(target_os = "windows"))]
+mod security_linux;
+#[cfg(target_os = "windows")]
+mod security_windows;
 mod settings;
 mod system_info;
 
@@ -164,31 +178,45 @@ pub fn run() {
             // state -- not a failure. Printing it is what lets a test tell
             // "started fine, no ThinkPad here" from "broken", which are otherwise
             // indistinguishable from the outside.
-            let present = |p: &str| {
-                if std::path::Path::new(p).exists() {
-                    "present"
-                } else {
-                    "absent"
-                }
-            };
-            let ibm_fan = present("/proc/acpi/ibm/fan");
-            let bat0 = present("/sys/class/power_supply/BAT0");
-            let cpufreq = present("/sys/devices/system/cpu/cpu0/cpufreq");
-            println!("[thinkutils] hw probe: ibm_fan={ibm_fan} bat0={bat0} cpufreq={cpufreq}");
+            #[cfg(target_os = "linux")]
+            {
+                let present = |p: &str| {
+                    if std::path::Path::new(p).exists() {
+                        "present"
+                    } else {
+                        "absent"
+                    }
+                };
+                let ibm_fan = present("/proc/acpi/ibm/fan");
+                let bat0 = present("/sys/class/power_supply/BAT0");
+                let cpufreq = present("/sys/devices/system/cpu/cpu0/cpufreq");
+                println!("[thinkutils] hw probe: ibm_fan={ibm_fan} bat0={bat0} cpufreq={cpufreq}");
 
-            // Only the thinkpad_acpi fan interface distinguishes a supported
-            // machine. A battery and cpufreq exist on every Linux laptop, and a
-            // container inherits the host's /sys -- so keying the mode off those
-            // reported full ThinkPad support from inside a container that had no
-            // fan interface at all. The first run of the launch test caught it.
-            println!(
-                "[thinkutils] hw mode: {}",
-                if ibm_fan == "present" {
-                    "full"
-                } else {
-                    "degraded"
-                }
-            );
+                // Only the thinkpad_acpi fan interface distinguishes a supported
+                // machine. A battery and cpufreq exist on every Linux laptop, and a
+                // container inherits the host's /sys -- so keying the mode off those
+                // reported full ThinkPad support from inside a container that had no
+                // fan interface at all. The first run of the launch test caught it.
+                println!(
+                    "[thinkutils] hw mode: {}",
+                    if ibm_fan == "present" {
+                        "full"
+                    } else {
+                        "degraded"
+                    }
+                );
+            }
+
+            #[cfg(target_os = "windows")]
+            {
+                let caps = capabilities::detect();
+                println!(
+                    "[thinkutils] hw probe: platform=windows thinkpad={} features={}",
+                    caps.is_thinkpad,
+                    caps.features.len()
+                );
+                println!("[thinkutils] hw mode: windows");
+            }
 
             // Load fan curve config from persistent storage
             let saved_config = fan_curve::load_config_from_store(app.handle());
@@ -205,19 +233,25 @@ pub fn run() {
             ));
             app.manage(fan_curve_state);
 
-            // Handle standalone CLI fan speed argument if started headlessly
-            let cli_args: Vec<String> = std::env::args().collect();
-            if let Some(fan_idx) = cli_args
-                .iter()
-                .position(|a| a == "--fan" || a == "--set-fan")
+            // Handle standalone CLI fan speed argument if started headlessly.
+            // This is a thinkpad_acpi feature; on Windows there is no fan
+            // interface to write, so the flag is ignored rather than attempting
+            // an elevation that cannot work.
+            #[cfg(target_os = "linux")]
             {
-                if let Some(target_speed) = cli_args.get(fan_idx + 1) {
-                    let speed = target_speed.clone();
-                    let app_handle = app.handle().clone();
-                    tauri::async_runtime::block_on(async move {
-                        let _ = crate::fan_control::apply_fan_speed(&app_handle, &speed).await;
-                    });
-                    std::process::exit(0);
+                let cli_args: Vec<String> = std::env::args().collect();
+                if let Some(fan_idx) = cli_args
+                    .iter()
+                    .position(|a| a == "--fan" || a == "--set-fan")
+                {
+                    if let Some(target_speed) = cli_args.get(fan_idx + 1) {
+                        let speed = target_speed.clone();
+                        let app_handle = app.handle().clone();
+                        tauri::async_runtime::block_on(async move {
+                            let _ = crate::fan_control::apply_fan_speed(&app_handle, &speed).await;
+                        });
+                        std::process::exit(0);
+                    }
                 }
             }
 
@@ -226,11 +260,16 @@ pub fn run() {
                 mcp::McpState::new(tokio::sync::Mutex::new(mcp::McpServerState::default()));
             app.manage(mcp_state);
 
-            // Start fan curve background task
-            let app_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                fan_curve::fan_curve_background_task(app_handle).await;
-            });
+            // Start the fan curve supervisor only where it can actually write to
+            // the fan. On Windows it would poll temperatures every two seconds
+            // and fail every write, so it is not started at all.
+            #[cfg(target_os = "linux")]
+            {
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    fan_curve::fan_curve_background_task(app_handle).await;
+                });
+            }
             // Create tray menu
             let show = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
             let hide = MenuItem::with_id(app, "hide", "Hide Window", true, None::<&str>)?;
@@ -305,6 +344,8 @@ pub fn run() {
             start_drag,
             // Authentication
             auth::authenticate_once,
+            // Platform capabilities
+            capabilities::get_capabilities,
             // Permissions
             permissions::check_permissions_status,
             permissions::setup_permissions,
@@ -376,11 +417,13 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
-        .run(|_app, event| {
+        .run(|_app, _event| {
             // Never exit leaving the fan under manual control. The firmware
             // watchdog is the backstop for a hard kill, but on a clean exit we
-            // hand the fan back explicitly and immediately.
-            if let tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit = event {
+            // hand the fan back explicitly and immediately. Windows has no
+            // thinkpad_acpi fan to restore.
+            #[cfg(target_os = "linux")]
+            if let tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit = _event {
                 fan_curve::restore_fan_to_auto_blocking();
             }
         });

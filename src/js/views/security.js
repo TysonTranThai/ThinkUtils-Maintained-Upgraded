@@ -1,5 +1,6 @@
 import { LogPanel } from '../logPanel.js';
 import { escapeHtml } from '../utils.js';
+import { getCapabilities, getCapability, showCapabilityNote } from '../capabilities.js';
 
 // Security View - Biometrics (Windows Hello) and Antivirus
 const { invoke } = window.__TAURI__.core;
@@ -16,11 +17,96 @@ const updateInstallLogs = (logs) => installLogs.update(logs);
 const completeInstallLogs = (ok) => installLogs.complete(ok);
 
 let scanInProgress = false;
+let isWindowsBackend = false;
+let securityPlatformApplied = false;
+
+function setText(id, text) {
+  const element = document.getElementById(id);
+  if (element) {
+    element.textContent = text;
+  }
+}
+
+/**
+ * The template was written for ClamAV and fprintd. The Windows backend is
+ * Microsoft Defender and Windows Hello, so relabel what is actually there and
+ * remove the controls that have no equivalent instead of leaving dead buttons.
+ */
+function applySecurityCapabilities() {
+  const capabilities = getCapabilities();
+  if (!capabilities || securityPlatformApplied) {
+    return;
+  }
+  securityPlatformApplied = true;
+  isWindowsBackend = capabilities.platform === 'windows';
+
+  const biometrics = getCapability('biometrics');
+  const biometricsHidden = isWindowsBackend || !biometrics || biometrics.status === 'unsupported';
+
+  const tabBiometrics = document.getElementById('tab-btn-biometrics');
+  const tabAntivirus = document.getElementById('tab-btn-antivirus');
+  const panelBiometrics = document.getElementById('security-panel-biometrics');
+  const panelAntivirus = document.getElementById('security-panel-antivirus');
+
+  if (isWindowsBackend) {
+    setText('antivirus-tab-label', 'Microsoft Defender');
+    setText('antivirus-status-title', 'Microsoft Defender');
+    setText('antivirus-engine-label', 'Engine Version');
+    setText('antivirus-signature-label', 'Signature Version');
+    setText('antivirus-install-title', 'Microsoft Defender is not available');
+    setText(
+      'antivirus-install-description',
+      'Microsoft Defender is built into Windows. Open Windows Security to check its status, or install a different antivirus if your organization requires one.'
+    );
+    setText('btn-install-clamav', 'Install Windows Security');
+
+    const installSection = document.getElementById('clamav-install-section');
+    if (installSection) {
+      installSection.style.display = 'none';
+    }
+    const pathInput = document.getElementById('scan-path-input');
+    if (pathInput) {
+      pathInput.placeholder = 'C:\\Users\\you\\Downloads';
+    }
+  }
+
+  if (biometricsHidden) {
+    showCapabilityNote(
+      document.querySelector('.security-container'),
+      isWindowsBackend ? 'Biometrics are managed by Windows' : 'Fingerprint reader unavailable',
+      isWindowsBackend
+        ? 'Fingerprint enrollment and Windows Hello settings live in Windows Settings > Accounts > Sign-in options. ThinkUtils does not modify biometric credentials on Windows.'
+        : biometrics?.detail ||
+            'No supported fingerprint reader was detected, so enrollment is not available.'
+    );
+
+    if (tabBiometrics) {
+      tabBiometrics.style.display = 'none';
+    }
+    if (panelBiometrics) {
+      panelBiometrics.style.display = 'none';
+      panelBiometrics.classList.remove('active');
+    }
+    if (tabAntivirus) {
+      tabAntivirus.classList.add('active');
+    }
+    if (panelAntivirus) {
+      panelAntivirus.style.display = 'flex';
+      panelAntivirus.classList.add('active');
+    }
+  }
+}
 
 export async function loadSecurityStatus() {
   console.log('[Security] Loading biometrics and security status...');
+  applySecurityCapabilities();
 
-  await Promise.allSettled([loadBiometricsStatus(), loadClamavStatus()]);
+  const biometrics = getCapability('biometrics');
+  const loadBiometrics = !isWindowsBackend && (!biometrics || biometrics.status !== 'unsupported');
+  await Promise.allSettled([
+    loadClamavStatus(),
+    ...(loadBiometrics ? [loadBiometricsStatus()] : [])
+  ]);
 }
 
 async function loadClamavStatus() {
@@ -727,14 +813,17 @@ function updateSecurityUI(status) {
     updateElement('db-definitions', status.definitions_count);
   } else {
     if (statusBadge) {
-      statusBadge.className = 'badge badge-warning';
-      statusBadge.textContent = 'Not Installed';
+      statusBadge.className = isWindowsBackend ? 'badge badge-neutral' : 'badge badge-warning';
+      statusBadge.textContent = isWindowsBackend ? 'Unavailable' : 'Not Installed';
     }
     if (statusText) {
-      statusText.textContent = 'Not Available';
+      statusText.textContent = isWindowsBackend
+        ? 'No antivirus is registered with Windows Security'
+        : 'Not Available';
     }
     if (installSection) {
-      installSection.style.display = 'flex';
+      // Defender is built in; there is nothing for ThinkUtils to install.
+      installSection.style.display = isWindowsBackend ? 'none' : 'flex';
     }
     if (controlsSection) {
       controlsSection.style.display = 'none';
@@ -750,6 +839,8 @@ function updateElement(id, value) {
 }
 
 export function setupSecurityHandlers() {
+  applySecurityCapabilities();
+
   // Sub-navigation tabs
   const tabBiometrics = document.getElementById('tab-btn-biometrics');
   const tabAntivirus = document.getElementById('tab-btn-antivirus');
@@ -1056,7 +1147,10 @@ function displayScanResults(result) {
   }
 
   if (filesCount) {
-    filesCount.textContent = result.scanned_files;
+    // Defender's Start-MpScan does not return a scanned-file count. Zero here
+    // would be a lie, so the Windows backend reports 0 and the view says so.
+    filesCount.textContent =
+      isWindowsBackend && result.scanned_files === 0 ? 'Not reported' : result.scanned_files;
   }
   if (threatsCount) {
     threatsCount.textContent = result.infected_files;

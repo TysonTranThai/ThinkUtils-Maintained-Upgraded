@@ -37,29 +37,37 @@ pub struct ApiResponse<T> {
 
 #[tauri::command]
 pub fn get_battery_info() -> ApiResponse<Vec<BatteryInfo>> {
-    let mut batteries = Vec::new();
+    #[cfg(target_os = "windows")]
+    {
+        return windows_battery::get_battery_info();
+    }
 
-    for (index, bat_path) in [BAT0_PATH, BAT1_PATH].iter().enumerate() {
-        if Path::new(bat_path).exists() {
-            match read_battery_info(bat_path, index) {
-                Ok(info) => batteries.push(info),
-                Err(e) => println!("[Battery] Error reading {}: {}", bat_path, e),
+    #[cfg(not(target_os = "windows"))]
+    {
+        let mut batteries = Vec::new();
+
+        for (index, bat_path) in [BAT0_PATH, BAT1_PATH].iter().enumerate() {
+            if Path::new(bat_path).exists() {
+                match read_battery_info(bat_path, index) {
+                    Ok(info) => batteries.push(info),
+                    Err(e) => println!("[Battery] Error reading {}: {}", bat_path, e),
+                }
             }
         }
-    }
 
-    if batteries.is_empty() {
-        return ApiResponse {
-            success: false,
-            data: None,
-            error: Some("No batteries found".to_string()),
-        };
-    }
+        if batteries.is_empty() {
+            return ApiResponse {
+                success: false,
+                data: None,
+                error: Some("No batteries found".to_string()),
+            };
+        }
 
-    ApiResponse {
-        success: true,
-        data: Some(batteries),
-        error: None,
+        ApiResponse {
+            success: true,
+            data: Some(batteries),
+            error: None,
+        }
     }
 }
 
@@ -164,36 +172,51 @@ pub fn threshold_paths() -> Option<(String, String)> {
 
 #[tauri::command]
 pub fn get_battery_thresholds() -> ApiResponse<BatteryThresholds> {
-    let (start_path, stop_path) = match threshold_paths() {
-        Some(pair) => pair,
-        None => {
-            // Preserve the previous defaults so callers that ignore `success`
-            // keep behaving as before.
-            return ApiResponse {
-                success: true,
-                data: Some(BatteryThresholds {
-                    start: 0,
-                    stop: 100,
-                }),
-                error: None,
-            };
+    #[cfg(target_os = "windows")]
+    {
+        return ApiResponse {
+            success: false,
+            data: None,
+            error: Some(
+                "Charge thresholds are not exposed by Windows on this machine. Use Lenovo Vantage if your model supports them."
+                    .to_string(),
+            ),
+        };
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let (start_path, stop_path) = match threshold_paths() {
+            Some(pair) => pair,
+            None => {
+                // Preserve the previous defaults so callers that ignore `success`
+                // keep behaving as before.
+                return ApiResponse {
+                    success: true,
+                    data: Some(BatteryThresholds {
+                        start: 0,
+                        stop: 100,
+                    }),
+                    error: None,
+                };
+            }
+        };
+
+        let start = fs::read_to_string(&start_path)
+            .ok()
+            .and_then(|s| s.trim().parse().ok())
+            .unwrap_or(0);
+
+        let stop = fs::read_to_string(&stop_path)
+            .ok()
+            .and_then(|s| s.trim().parse().ok())
+            .unwrap_or(100);
+
+        ApiResponse {
+            success: true,
+            data: Some(BatteryThresholds { start, stop }),
+            error: None,
         }
-    };
-
-    let start = fs::read_to_string(&start_path)
-        .ok()
-        .and_then(|s| s.trim().parse().ok())
-        .unwrap_or(0);
-
-    let stop = fs::read_to_string(&stop_path)
-        .ok()
-        .and_then(|s| s.trim().parse().ok())
-        .unwrap_or(100);
-
-    ApiResponse {
-        success: true,
-        data: Some(BatteryThresholds { start, stop }),
-        error: None,
     }
 }
 
@@ -213,90 +236,106 @@ fn write_start_first(current_start: u8, new_stop: u8) -> bool {
 
 #[tauri::command]
 pub async fn set_battery_thresholds(start: u8, stop: u8) -> ApiResponse<String> {
-    if start >= stop {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = (start, stop);
         return ApiResponse {
             success: false,
             data: None,
-            error: Some("Start threshold must be less than stop threshold".to_string()),
+            error: Some(
+                "ThinkUtils cannot change battery charge thresholds on Windows. Use Lenovo Vantage if your model supports them."
+                    .to_string(),
+            ),
         };
     }
 
-    if start > 100 || stop > 100 {
-        return ApiResponse {
-            success: false,
-            data: None,
-            error: Some("Thresholds must be between 0 and 100".to_string()),
-        };
-    }
-
-    let (start_path, stop_path) = match threshold_paths() {
-        Some(pair) => pair,
-        None => {
+    #[cfg(not(target_os = "windows"))]
+    {
+        if start >= stop {
             return ApiResponse {
                 success: false,
                 data: None,
-                error: Some(
-                    "This machine exposes no battery charge threshold controls.".to_string(),
-                ),
-            }
+                error: Some("Start threshold must be less than stop threshold".to_string()),
+            };
         }
-    };
 
-    // get_battery_thresholds() has no failure path — it substitutes defaults on a
-    // failed read — so there is nothing to match on. Note the substituted default
-    // for start is 0, which makes write_start_first() return false and yields the
-    // stop-first order. That is the safe fallback: it is the order that was in use
-    // before this ordering logic existed.
-    let current = get_battery_thresholds().data.unwrap_or(BatteryThresholds {
-        start: 0,
-        stop: 100,
-    });
+        if start > 100 || stop > 100 {
+            return ApiResponse {
+                success: false,
+                data: None,
+                error: Some("Thresholds must be between 0 and 100".to_string()),
+            };
+        }
 
-    let (first_path, first_value, second_path, second_value) =
-        if write_start_first(current.start, stop) {
-            (start_path, start.to_string(), stop_path, stop.to_string())
-        } else {
-            (stop_path, stop.to_string(), start_path, start.to_string())
-        };
-
-    // Try direct write first
-    if fs::write(&first_path, &first_value).is_ok()
-        && fs::write(&second_path, &second_value).is_ok()
-    {
-        return ApiResponse {
-            success: true,
-            data: Some(format!("Thresholds set: {}%-{}%", start, stop)),
-            error: None,
-        };
-    }
-
-    // Need elevated permissions. Writes stay in the order chosen above.
-    let script_content = format!(
-        "#!/bin/bash\nset -e\necho {} > {}\necho {} > {}\nexit 0\n",
-        first_value, first_path, second_value, second_path
-    );
-
-    match crate::privileged::run_script(&script_content).await {
-        Ok(output) => {
-            if output.status.success() {
-                ApiResponse {
-                    success: true,
-                    data: Some(format!("Thresholds set: {}%-{}%", start, stop)),
-                    error: None,
-                }
-            } else {
-                ApiResponse {
+        let (start_path, stop_path) = match threshold_paths() {
+            Some(pair) => pair,
+            None => {
+                return ApiResponse {
                     success: false,
                     data: None,
-                    error: Some("Permission denied".to_string()),
+                    error: Some(
+                        "This machine exposes no battery charge threshold controls.".to_string(),
+                    ),
                 }
             }
+        };
+
+        // get_battery_thresholds() has no failure path — it substitutes defaults on a
+        // failed read — so there is nothing to match on. Note the substituted default
+        // for start is 0, which makes write_start_first() return false and yields the
+        // stop-first order. That is the safe fallback: it is the order that was in use
+        // before this ordering logic existed.
+        let current = get_battery_thresholds().data.unwrap_or(BatteryThresholds {
+            start: 0,
+            stop: 100,
+        });
+
+        let (first_path, first_value, second_path, second_value) =
+            if write_start_first(current.start, stop) {
+                (start_path, start.to_string(), stop_path, stop.to_string())
+            } else {
+                (stop_path, stop.to_string(), start_path, start.to_string())
+            };
+
+        // Try direct write first
+        if fs::write(&first_path, &first_value).is_ok()
+            && fs::write(&second_path, &second_value).is_ok()
+        {
+            return ApiResponse {
+                success: true,
+                data: Some(format!("Thresholds set: {}%-{}%", start, stop)),
+                error: None,
+            };
         }
-        Err(e) => ApiResponse {
-            success: false,
-            data: None,
-            error: Some(format!("Failed to execute: {}", e)),
-        },
+
+        // Need elevated permissions. Writes stay in the order chosen above.
+        let script_content = format!(
+            "#!/bin/bash\nset -e\necho {} > {}\necho {} > {}\nexit 0\n",
+            first_value, first_path, second_value, second_path
+        );
+
+        match crate::privileged::run_script(&script_content).await {
+            Ok(output) => {
+                if output.status.success() {
+                    ApiResponse {
+                        success: true,
+                        data: Some(format!("Thresholds set: {}%-{}%", start, stop)),
+                        error: None,
+                    }
+                } else {
+                    ApiResponse {
+                        success: false,
+                        data: None,
+                        error: Some("Permission denied".to_string()),
+                    }
+                }
+            }
+            Err(e) => ApiResponse {
+                success: false,
+                data: None,
+                error: Some(format!("Failed to execute: {}", e)),
+            },
+        }
     }
 }
 
@@ -313,82 +352,337 @@ pub struct PowerConsumptionData {
 
 #[tauri::command]
 pub fn get_power_consumption() -> ApiResponse<PowerConsumptionData> {
-    let is_ac_online = fs::read_to_string("/sys/class/power_supply/AC/online")
-        .map(|s| s.trim() == "1")
-        .unwrap_or(false);
+    #[cfg(target_os = "windows")]
+    {
+        return windows_battery::get_power_consumption();
+    }
 
-    let mut power_w: f32 = 0.0;
-    let mut energy_now_wh: f32 = 0.0;
-    let mut energy_full_wh: f32 = 0.0;
-    let mut status = "Unknown".to_string();
-    let mut capacity: u8 = 0;
+    #[cfg(not(target_os = "windows"))]
+    {
+        let is_ac_online = fs::read_to_string("/sys/class/power_supply/AC/online")
+            .map(|s| s.trim() == "1")
+            .unwrap_or(false);
 
-    for bat_path in [BAT0_PATH, BAT1_PATH] {
-        if Path::new(bat_path).exists() {
-            let read_f32 = |file: &str| -> f32 {
-                fs::read_to_string(format!("{}/{}", bat_path, file))
-                    .ok()
-                    .and_then(|s| s.trim().parse::<f32>().ok())
-                    .map(|v| v / 1_000_000.0)
-                    .unwrap_or(0.0)
-            };
+        let mut power_w: f32 = 0.0;
+        let mut energy_now_wh: f32 = 0.0;
+        let mut energy_full_wh: f32 = 0.0;
+        let mut status = "Unknown".to_string();
+        let mut capacity: u8 = 0;
 
-            let p = if let Ok(p_str) = fs::read_to_string(format!("{}/power_now", bat_path)) {
-                p_str
-                    .trim()
-                    .parse::<f32>()
-                    .map(|v| v / 1_000_000.0)
-                    .unwrap_or(0.0)
-            } else {
-                let v = read_f32("voltage_now");
-                let c = read_f32("current_now");
-                v * c
-            };
-            power_w += p;
-            energy_now_wh += read_f32("energy_now");
-            energy_full_wh += read_f32("energy_full");
+        for bat_path in [BAT0_PATH, BAT1_PATH] {
+            if Path::new(bat_path).exists() {
+                let read_f32 = |file: &str| -> f32 {
+                    fs::read_to_string(format!("{}/{}", bat_path, file))
+                        .ok()
+                        .and_then(|s| s.trim().parse::<f32>().ok())
+                        .map(|v| v / 1_000_000.0)
+                        .unwrap_or(0.0)
+                };
 
-            if let Ok(st) = fs::read_to_string(format!("{}/status", bat_path)) {
-                let st_trimmed = st.trim().to_string();
-                if st_trimmed != "Unknown" && !st_trimmed.is_empty() {
-                    status = st_trimmed;
+                let p = if let Ok(p_str) = fs::read_to_string(format!("{}/power_now", bat_path)) {
+                    p_str
+                        .trim()
+                        .parse::<f32>()
+                        .map(|v| v / 1_000_000.0)
+                        .unwrap_or(0.0)
+                } else {
+                    let v = read_f32("voltage_now");
+                    let c = read_f32("current_now");
+                    v * c
+                };
+                power_w += p;
+                energy_now_wh += read_f32("energy_now");
+                energy_full_wh += read_f32("energy_full");
+
+                if let Ok(st) = fs::read_to_string(format!("{}/status", bat_path)) {
+                    let st_trimmed = st.trim().to_string();
+                    if st_trimmed != "Unknown" && !st_trimmed.is_empty() {
+                        status = st_trimmed;
+                    }
                 }
-            }
 
-            if let Ok(cap_str) = fs::read_to_string(format!("{}/capacity", bat_path)) {
-                if let Ok(cap) = cap_str.trim().parse::<u8>() {
-                    capacity = cap;
+                if let Ok(cap_str) = fs::read_to_string(format!("{}/capacity", bat_path)) {
+                    if let Ok(cap) = cap_str.trim().parse::<u8>() {
+                        capacity = cap;
+                    }
                 }
             }
         }
+
+        let is_charging = status == "Charging";
+
+        let runtime_hours = if !is_charging && !is_ac_online && power_w > 0.05 {
+            Some(energy_now_wh / power_w)
+        } else {
+            None
+        };
+
+        let time_to_full_hours = if is_charging && power_w > 0.05 {
+            Some(((energy_full_wh - energy_now_wh).max(0.0)) / power_w)
+        } else {
+            None
+        };
+
+        ApiResponse {
+            success: true,
+            data: Some(PowerConsumptionData {
+                power_w,
+                is_charging,
+                is_ac_online,
+                status,
+                capacity,
+                runtime_hours,
+                time_to_full_hours,
+            }),
+            error: None,
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+mod windows_battery {
+    use super::*;
+    use serde::Deserialize;
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
+    use windows_sys::Win32::System::Power::{GetSystemPowerStatus, SYSTEM_POWER_STATUS};
+
+    const UNKNOWN: u8 = 255;
+    const BATTERY_FLAG_CHARGING: u8 = 8;
+    const BATTERY_FLAG_NO_BATTERY: u8 = 128;
+    const STATIC_TTL: Duration = Duration::from_secs(60);
+
+    #[derive(Debug, Deserialize, Clone)]
+    struct WinBattery {
+        #[serde(default)]
+        name: String,
+        #[serde(default)]
+        manufacturer: String,
+        #[serde(default)]
+        design_capacity: Option<f64>,
+        #[serde(default)]
+        full_charge_capacity: Option<f64>,
+        #[serde(default)]
+        cycle_count: Option<u32>,
+        #[serde(default)]
+        chemistry: Option<u32>,
     }
 
-    let is_charging = status == "Charging";
+    static STATIC_CACHE: Mutex<Option<(Instant, Vec<WinBattery>)>> = Mutex::new(None);
 
-    let runtime_hours = if !is_charging && !is_ac_online && power_w > 0.05 {
-        Some(energy_now_wh / power_w)
-    } else {
-        None
-    };
+    fn power_status() -> Result<SYSTEM_POWER_STATUS, String> {
+        let mut status: SYSTEM_POWER_STATUS = unsafe { std::mem::zeroed() };
+        let ok = unsafe { GetSystemPowerStatus(&mut status) };
+        if ok == 0 {
+            Err("GetSystemPowerStatus failed".to_string())
+        } else {
+            Ok(status)
+        }
+    }
 
-    let time_to_full_hours = if is_charging && power_w > 0.05 {
-        Some(((energy_full_wh - energy_now_wh).max(0.0)) / power_w)
-    } else {
-        None
-    };
+    fn battery_status_label(status: &SYSTEM_POWER_STATUS) -> String {
+        if status.BatteryFlag & BATTERY_FLAG_NO_BATTERY != 0 || status.BatteryLifePercent == UNKNOWN
+        {
+            return "No battery".to_string();
+        }
+        if status.BatteryFlag & BATTERY_FLAG_CHARGING != 0 {
+            return "Charging".to_string();
+        }
+        if status.ACLineStatus == 1 {
+            if status.BatteryLifePercent >= 99 {
+                return "Full".to_string();
+            }
+            return "Not charging".to_string();
+        }
+        "Discharging".to_string()
+    }
 
-    ApiResponse {
-        success: true,
-        data: Some(PowerConsumptionData {
-            power_w,
-            is_charging,
-            is_ac_online,
-            status,
-            capacity,
-            runtime_hours,
-            time_to_full_hours,
-        }),
-        error: None,
+    fn static_batteries() -> Vec<WinBattery> {
+        if let Ok(guard) = STATIC_CACHE.lock() {
+            if let Some((at, batteries)) = guard.as_ref() {
+                if at.elapsed() < STATIC_TTL {
+                    return batteries.clone();
+                }
+            }
+        }
+
+        let script = r#"
+Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue |
+    Select-Object Name, Manufacturer, DesignCapacity, FullChargeCapacity, CycleCount, Chemistry |
+    ConvertTo-Json -Compress
+"#;
+
+        let parsed = crate::platform::powershell(script)
+            .ok()
+            .and_then(|raw| {
+                let value: serde_json::Value = serde_json::from_str(&raw).ok()?;
+                if value.is_array() {
+                    serde_json::from_value::<Vec<WinBattery>>(value).ok()
+                } else {
+                    serde_json::from_value::<WinBattery>(value)
+                        .ok()
+                        .map(|b| vec![b])
+                }
+            })
+            .unwrap_or_default();
+
+        if let Ok(mut guard) = STATIC_CACHE.lock() {
+            *guard = Some((Instant::now(), parsed.clone()));
+        }
+        parsed
+    }
+
+    fn chemistry_name(code: Option<u32>) -> String {
+        match code {
+            Some(3) => "Lead Acid",
+            Some(4) => "Nickel Cadmium",
+            Some(5) => "Nickel Metal Hydride",
+            Some(6) => "Lithium-ion",
+            Some(7) => "Zinc air",
+            Some(8) => "Lithium polymer",
+            _ => "Unknown",
+        }
+        .to_string()
+    }
+
+    pub fn get_battery_info() -> ApiResponse<Vec<BatteryInfo>> {
+        let status = match power_status() {
+            Ok(status) => status,
+            Err(e) => {
+                return ApiResponse {
+                    success: false,
+                    data: None,
+                    error: Some(e),
+                }
+            }
+        };
+
+        if status.BatteryFlag & BATTERY_FLAG_NO_BATTERY != 0 || status.BatteryLifePercent == UNKNOWN
+        {
+            return ApiResponse {
+                success: false,
+                data: None,
+                error: Some("No battery found".to_string()),
+            };
+        }
+
+        let statics = static_batteries();
+        let capacity = status.BatteryLifePercent.min(100);
+        let batteries = if statics.is_empty() {
+            vec![BatteryInfo {
+                name: "Battery".to_string(),
+                status: battery_status_label(&status),
+                capacity,
+                health: 100,
+                cycles: 0,
+                voltage: 0.0,
+                current: 0.0,
+                power: 0.0,
+                energy_now: 0.0,
+                energy_full: 0.0,
+                energy_design: 0.0,
+                technology: "Unknown".to_string(),
+                manufacturer: "Unknown".to_string(),
+            }]
+        } else {
+            statics
+                .into_iter()
+                .enumerate()
+                .map(|(index, battery)| {
+                    let design_wh = battery.design_capacity.unwrap_or(0.0) / 1000.0;
+                    let full_wh = battery.full_charge_capacity.unwrap_or(0.0) / 1000.0;
+                    let health = if design_wh > 0.0 && full_wh > 0.0 {
+                        ((full_wh / design_wh) * 100.0).clamp(0.0, 100.0) as u8
+                    } else {
+                        100
+                    };
+                    let energy_now = if full_wh > 0.0 {
+                        (full_wh * capacity as f64 / 100.0) as f32
+                    } else {
+                        0.0
+                    };
+
+                    BatteryInfo {
+                        name: if battery.name.is_empty() {
+                            format!("Battery {}", index + 1)
+                        } else {
+                            battery.name
+                        },
+                        status: battery_status_label(&status),
+                        capacity,
+                        health,
+                        cycles: battery.cycle_count.unwrap_or(0),
+                        voltage: 0.0,
+                        current: 0.0,
+                        power: 0.0,
+                        energy_now,
+                        energy_full: full_wh as f32,
+                        energy_design: design_wh as f32,
+                        technology: chemistry_name(battery.chemistry),
+                        manufacturer: if battery.manufacturer.is_empty() {
+                            "Unknown".to_string()
+                        } else {
+                            battery.manufacturer
+                        },
+                    }
+                })
+                .collect()
+        };
+
+        ApiResponse {
+            success: true,
+            data: Some(batteries),
+            error: None,
+        }
+    }
+
+    pub fn get_power_consumption() -> ApiResponse<PowerConsumptionData> {
+        let status = match power_status() {
+            Ok(status) => status,
+            Err(e) => {
+                return ApiResponse {
+                    success: false,
+                    data: None,
+                    error: Some(e),
+                }
+            }
+        };
+
+        let is_ac_online = status.ACLineStatus == 1;
+        let is_charging = status.BatteryFlag & BATTERY_FLAG_CHARGING != 0;
+        let label = battery_status_label(&status);
+        let capacity = if status.BatteryLifePercent == UNKNOWN {
+            0
+        } else {
+            status.BatteryLifePercent.min(100)
+        };
+
+        // Windows does not report instantaneous battery power through this API.
+        // Leave it at zero rather than inventing a number; the UI shows "not
+        // reported" for a zero discharge reading.
+        let runtime_hours = if !is_ac_online
+            && !is_charging
+            && status.BatteryLifeTime != u32::MAX
+            && status.BatteryLifeTime > 0
+        {
+            Some(status.BatteryLifeTime as f32 / 3600.0)
+        } else {
+            None
+        };
+
+        ApiResponse {
+            success: true,
+            data: Some(PowerConsumptionData {
+                power_w: 0.0,
+                is_charging,
+                is_ac_online,
+                status: label,
+                capacity,
+                runtime_hours,
+                time_to_full_hours: None,
+            }),
+            error: None,
+        }
     }
 }
 

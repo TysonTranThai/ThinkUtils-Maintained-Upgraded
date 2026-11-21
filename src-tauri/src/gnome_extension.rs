@@ -116,7 +116,13 @@ pub fn check_is_active() -> bool {
 }
 
 #[tauri::command]
+#[allow(unreachable_code)]
 pub fn get_gnome_extension_status() -> Result<GnomeExtensionStatus, String> {
+    #[cfg(target_os = "windows")]
+    {
+        return Err("GNOME Shell extensions are Linux-only.".to_string());
+    }
+
     let ext_dir = get_extension_dir();
     let is_gnome = detect_is_gnome();
     let shell_version = get_shell_version();
@@ -159,7 +165,13 @@ pub fn get_gnome_extension_status() -> Result<GnomeExtensionStatus, String> {
 }
 
 #[tauri::command]
+#[allow(unreachable_code)]
 pub fn install_gnome_extension() -> Result<GnomeExtensionStatus, String> {
+    #[cfg(target_os = "windows")]
+    {
+        return Err("GNOME Shell extensions are Linux-only.".to_string());
+    }
+
     let ext_dir = get_extension_dir();
     std::fs::create_dir_all(&ext_dir)
         .map_err(|e| format!("Failed to create extension directory: {}", e))?;
@@ -175,7 +187,14 @@ pub fn install_gnome_extension() -> Result<GnomeExtensionStatus, String> {
 }
 
 #[tauri::command]
+#[allow(unreachable_code)]
 pub fn enable_gnome_extension(enable: bool) -> Result<GnomeExtensionStatus, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = enable;
+        return Err("GNOME Shell extensions are Linux-only.".to_string());
+    }
+
     let ext_dir = get_extension_dir();
     if enable && (!ext_dir.join("metadata.json").exists() || !ext_dir.join("extension.js").exists())
     {
@@ -203,7 +222,13 @@ pub fn enable_gnome_extension(enable: bool) -> Result<GnomeExtensionStatus, Stri
 }
 
 #[tauri::command]
+#[allow(unreachable_code)]
 pub fn uninstall_gnome_extension() -> Result<GnomeExtensionStatus, String> {
+    #[cfg(target_os = "windows")]
+    {
+        return Err("GNOME Shell extensions are Linux-only.".to_string());
+    }
+
     let _ = enable_gnome_extension(false);
     let ext_dir = get_extension_dir();
     if ext_dir.exists() {

@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
+
 use std::fs;
+#[cfg(not(target_os = "windows"))]
 use std::process::Command;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -26,35 +28,43 @@ pub struct ApiResponse<T> {
 
 #[tauri::command]
 pub fn get_cpu_info() -> ApiResponse<CpuInfo> {
-    let cpu0_path = "/sys/devices/system/cpu/cpu0/cpufreq";
+    #[cfg(target_os = "windows")]
+    {
+        return crate::performance_windows::get_cpu_info();
+    }
 
-    let read_file = |file: &str| -> String {
-        fs::read_to_string(format!("{}/{}", cpu0_path, file))
-            .unwrap_or_default()
-            .trim()
-            .to_string()
-    };
+    #[cfg(not(target_os = "windows"))]
+    {
+        let cpu0_path = "/sys/devices/system/cpu/cpu0/cpufreq";
 
-    let read_freq = |file: &str| -> u32 {
-        read_file(file).parse::<u32>().unwrap_or(0) / 1000 // Convert kHz to MHz
-    };
+        let read_file = |file: &str| -> String {
+            fs::read_to_string(format!("{}/{}", cpu0_path, file))
+                .unwrap_or_default()
+                .trim()
+                .to_string()
+        };
 
-    let governor = read_file("scaling_governor");
-    let available_governors = read_file("scaling_available_governors")
-        .split_whitespace()
-        .map(String::from)
-        .collect();
+        let read_freq = |file: &str| -> u32 {
+            read_file(file).parse::<u32>().unwrap_or(0) / 1000 // Convert kHz to MHz
+        };
 
-    ApiResponse {
-        success: true,
-        data: Some(CpuInfo {
-            governor,
-            min_freq: read_freq("scaling_min_freq"),
-            max_freq: read_freq("scaling_max_freq"),
-            current_freq: read_freq("scaling_cur_freq"),
-            available_governors,
-        }),
-        error: None,
+        let governor = read_file("scaling_governor");
+        let available_governors = read_file("scaling_available_governors")
+            .split_whitespace()
+            .map(String::from)
+            .collect();
+
+        ApiResponse {
+            success: true,
+            data: Some(CpuInfo {
+                governor,
+                min_freq: read_freq("scaling_min_freq"),
+                max_freq: read_freq("scaling_max_freq"),
+                current_freq: read_freq("scaling_cur_freq"),
+                available_governors,
+            }),
+            error: None,
+        }
     }
 }
 
@@ -142,60 +152,68 @@ exit 0
 
 #[tauri::command]
 pub async fn set_cpu_governor(governor: String) -> ApiResponse<String> {
-    println!("[Performance] Setting CPU governor to: {}", governor);
-
-    // This value reaches a root shell below — validate before anything else.
-    if let Err(e) = validate_governor(&governor) {
-        println!("[Performance] ✗ Rejected governor: {}", e);
-        return ApiResponse {
-            success: false,
-            data: None,
-            error: Some(e),
-        };
+    #[cfg(target_os = "windows")]
+    {
+        return crate::performance_windows::set_cpu_governor(governor).await;
     }
 
-    let script_content = governor_script(&governor, CPU_GLOB);
+    #[cfg(not(target_os = "windows"))]
+    {
+        println!("[Performance] Setting CPU governor to: {}", governor);
 
-    println!("[Performance] Script content:\n{}", script_content);
+        // This value reaches a root shell below — validate before anything else.
+        if let Err(e) = validate_governor(&governor) {
+            println!("[Performance] ✗ Rejected governor: {}", e);
+            return ApiResponse {
+                success: false,
+                data: None,
+                error: Some(e),
+            };
+        }
 
-    println!("[Performance] Executing pkexec...");
+        let script_content = governor_script(&governor, CPU_GLOB);
 
-    match crate::privileged::run_script(&script_content).await {
-        Ok(output) => {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let stderr = String::from_utf8_lossy(&output.stderr);
+        println!("[Performance] Script content:\n{}", script_content);
 
-            println!("[Performance] pkexec stdout: {}", stdout);
-            println!("[Performance] pkexec stderr: {}", stderr);
-            println!("[Performance] pkexec status: {}", output.status);
+        println!("[Performance] Executing pkexec...");
 
-            if output.status.success() {
-                println!("[Performance] Successfully set governor to: {}", governor);
-                ApiResponse {
-                    success: true,
-                    data: Some(format!("CPU governor set to: {}", governor)),
-                    error: None,
-                }
-            } else {
-                let error_msg = if !stderr.is_empty() {
-                    stderr.to_string()
+        match crate::privileged::run_script(&script_content).await {
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+
+                println!("[Performance] pkexec stdout: {}", stdout);
+                println!("[Performance] pkexec stderr: {}", stderr);
+                println!("[Performance] pkexec status: {}", output.status);
+
+                if output.status.success() {
+                    println!("[Performance] Successfully set governor to: {}", governor);
+                    ApiResponse {
+                        success: true,
+                        data: Some(format!("CPU governor set to: {}", governor)),
+                        error: None,
+                    }
                 } else {
-                    "Permission denied or operation failed".to_string()
-                };
-                println!("[Performance] Failed to set governor: {}", error_msg);
+                    let error_msg = if !stderr.is_empty() {
+                        stderr.to_string()
+                    } else {
+                        "Permission denied or operation failed".to_string()
+                    };
+                    println!("[Performance] Failed to set governor: {}", error_msg);
+                    ApiResponse {
+                        success: false,
+                        data: None,
+                        error: Some(error_msg),
+                    }
+                }
+            }
+            Err(e) => {
+                println!("[Performance] Failed to execute pkexec: {}", e);
                 ApiResponse {
                     success: false,
                     data: None,
-                    error: Some(error_msg),
+                    error: Some(format!("Failed to execute pkexec: {}", e)),
                 }
-            }
-        }
-        Err(e) => {
-            println!("[Performance] Failed to execute pkexec: {}", e);
-            ApiResponse {
-                success: false,
-                data: None,
-                error: Some(format!("Failed to execute pkexec: {}", e)),
             }
         }
     }
@@ -203,218 +221,250 @@ pub async fn set_cpu_governor(governor: String) -> ApiResponse<String> {
 
 #[tauri::command]
 pub fn get_power_profile() -> ApiResponse<PowerProfile> {
-    // Try power-profiles-daemon first
-    match Command::new("powerprofilesctl").arg("get").output() {
-        Ok(output) if output.status.success() => {
-            let current = String::from_utf8_lossy(&output.stdout).trim().to_string();
-
-            // Get available profiles
-            let available = match Command::new("powerprofilesctl").arg("list").output() {
-                Ok(list_output) if list_output.status.success() => {
-                    String::from_utf8_lossy(&list_output.stdout)
-                        .lines()
-                        .filter(|line| {
-                            line.contains("*")
-                                || line.trim().starts_with("power-saver")
-                                || line.trim().starts_with("balanced")
-                                || line.trim().starts_with("performance")
-                        })
-                        .map(|line| {
-                            line.trim()
-                                .trim_start_matches("* ")
-                                .split(':')
-                                .next()
-                                .unwrap_or("")
-                                .trim()
-                                .to_string()
-                        })
-                        .filter(|s| !s.is_empty())
-                        .collect()
-                }
-                _ => vec![
-                    "power-saver".to_string(),
-                    "balanced".to_string(),
-                    "performance".to_string(),
-                ],
-            };
-
-            return ApiResponse {
-                success: true,
-                data: Some(PowerProfile { current, available }),
-                error: None,
-            };
-        }
-        _ => {}
+    #[cfg(target_os = "windows")]
+    {
+        return crate::performance_windows::get_power_profile();
     }
 
-    // Fallback to TLP if available
-    match Command::new("tlp-stat").arg("-s").output() {
-        Ok(output) if output.status.success() => {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let current = if stdout.contains("AC") {
-                "performance".to_string()
-            } else {
-                "power-saver".to_string()
-            };
+    #[cfg(not(target_os = "windows"))]
+    {
+        // Try power-profiles-daemon first
+        match Command::new("powerprofilesctl").arg("get").output() {
+            Ok(output) if output.status.success() => {
+                let current = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
-            return ApiResponse {
-                success: true,
-                data: Some(PowerProfile {
-                    current,
-                    available: vec!["power-saver".to_string(), "performance".to_string()],
-                }),
-                error: None,
-            };
+                // Get available profiles
+                let available = match Command::new("powerprofilesctl").arg("list").output() {
+                    Ok(list_output) if list_output.status.success() => {
+                        String::from_utf8_lossy(&list_output.stdout)
+                            .lines()
+                            .filter(|line| {
+                                line.contains("*")
+                                    || line.trim().starts_with("power-saver")
+                                    || line.trim().starts_with("balanced")
+                                    || line.trim().starts_with("performance")
+                            })
+                            .map(|line| {
+                                line.trim()
+                                    .trim_start_matches("* ")
+                                    .split(':')
+                                    .next()
+                                    .unwrap_or("")
+                                    .trim()
+                                    .to_string()
+                            })
+                            .filter(|s| !s.is_empty())
+                            .collect()
+                    }
+                    _ => vec![
+                        "power-saver".to_string(),
+                        "balanced".to_string(),
+                        "performance".to_string(),
+                    ],
+                };
+
+                return ApiResponse {
+                    success: true,
+                    data: Some(PowerProfile { current, available }),
+                    error: None,
+                };
+            }
+            _ => {}
         }
-        _ => {}
-    }
 
-    ApiResponse {
-        success: false,
-        data: None,
-        error: Some(
-            "No power management tool found (install power-profiles-daemon or TLP)".to_string(),
-        ),
+        // Fallback to TLP if available
+        match Command::new("tlp-stat").arg("-s").output() {
+            Ok(output) if output.status.success() => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let current = if stdout.contains("AC") {
+                    "performance".to_string()
+                } else {
+                    "power-saver".to_string()
+                };
+
+                return ApiResponse {
+                    success: true,
+                    data: Some(PowerProfile {
+                        current,
+                        available: vec!["power-saver".to_string(), "performance".to_string()],
+                    }),
+                    error: None,
+                };
+            }
+            _ => {}
+        }
+
+        ApiResponse {
+            success: false,
+            data: None,
+            error: Some(
+                "No power management tool found (install power-profiles-daemon or TLP)".to_string(),
+            ),
+        }
     }
 }
 
 #[tauri::command]
 pub async fn set_power_profile(profile: String) -> ApiResponse<String> {
-    println!("[Performance] Setting power profile to: {}", profile);
-
-    // Try power-profiles-daemon
-    match tokio::process::Command::new("powerprofilesctl")
-        .arg("set")
-        .arg(&profile)
-        .output()
-        .await
+    #[cfg(target_os = "windows")]
     {
-        Ok(output) if output.status.success() => {
-            return ApiResponse {
-                success: true,
-                data: Some(format!("Power profile set to: {}", profile)),
-                error: None,
-            };
-        }
-        _ => {}
+        return crate::performance_windows::set_power_profile(profile).await;
     }
 
-    // Fallback to TLP
-    let tlp_mode = match profile.as_str() {
-        "power-saver" => "BAT",
-        "performance" => "AC",
-        _ => "BAT",
-    };
-
-    match tokio::process::Command::new("sudo")
-        .arg("tlp")
-        .arg(tlp_mode)
-        .output()
-        .await
+    #[cfg(not(target_os = "windows"))]
     {
-        Ok(output) if output.status.success() => ApiResponse {
-            success: true,
-            data: Some(format!("TLP mode set to: {}", tlp_mode)),
-            error: None,
-        },
-        _ => ApiResponse {
-            success: false,
-            data: None,
-            error: Some("Failed to set power profile".to_string()),
-        },
+        println!("[Performance] Setting power profile to: {}", profile);
+
+        // Try power-profiles-daemon
+        match tokio::process::Command::new("powerprofilesctl")
+            .arg("set")
+            .arg(&profile)
+            .output()
+            .await
+        {
+            Ok(output) if output.status.success() => {
+                return ApiResponse {
+                    success: true,
+                    data: Some(format!("Power profile set to: {}", profile)),
+                    error: None,
+                };
+            }
+            _ => {}
+        }
+
+        // Fallback to TLP
+        let tlp_mode = match profile.as_str() {
+            "power-saver" => "BAT",
+            "performance" => "AC",
+            _ => "BAT",
+        };
+
+        match tokio::process::Command::new("sudo")
+            .arg("tlp")
+            .arg(tlp_mode)
+            .output()
+            .await
+        {
+            Ok(output) if output.status.success() => ApiResponse {
+                success: true,
+                data: Some(format!("TLP mode set to: {}", tlp_mode)),
+                error: None,
+            },
+            _ => ApiResponse {
+                success: false,
+                data: None,
+                error: Some("Failed to set power profile".to_string()),
+            },
+        }
     }
 }
 
 #[tauri::command]
 pub fn get_turbo_boost_status() -> ApiResponse<bool> {
-    let intel_pstate = "/sys/devices/system/cpu/intel_pstate/no_turbo";
-    let cpufreq_boost = "/sys/devices/system/cpu/cpufreq/boost";
-
-    // Check Intel P-state
-    if let Ok(content) = fs::read_to_string(intel_pstate) {
-        let no_turbo = content.trim() == "1";
-        return ApiResponse {
-            success: true,
-            data: Some(!no_turbo), // Invert because file is "no_turbo"
-            error: None,
-        };
+    #[cfg(target_os = "windows")]
+    {
+        return crate::performance_windows::get_turbo_boost_status();
     }
 
-    // Check cpufreq boost
-    if let Ok(content) = fs::read_to_string(cpufreq_boost) {
-        let boost = content.trim() == "1";
-        return ApiResponse {
-            success: true,
-            data: Some(boost),
-            error: None,
-        };
-    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let intel_pstate = "/sys/devices/system/cpu/intel_pstate/no_turbo";
+        let cpufreq_boost = "/sys/devices/system/cpu/cpufreq/boost";
 
-    ApiResponse {
-        success: false,
-        data: None,
-        error: Some("Turbo boost control not available".to_string()),
+        // Check Intel P-state
+        if let Ok(content) = fs::read_to_string(intel_pstate) {
+            let no_turbo = content.trim() == "1";
+            return ApiResponse {
+                success: true,
+                data: Some(!no_turbo), // Invert because file is "no_turbo"
+                error: None,
+            };
+        }
+
+        // Check cpufreq boost
+        if let Ok(content) = fs::read_to_string(cpufreq_boost) {
+            let boost = content.trim() == "1";
+            return ApiResponse {
+                success: true,
+                data: Some(boost),
+                error: None,
+            };
+        }
+
+        ApiResponse {
+            success: false,
+            data: None,
+            error: Some("Turbo boost control not available".to_string()),
+        }
     }
 }
 
 #[tauri::command]
 pub async fn set_turbo_boost(enabled: bool) -> ApiResponse<String> {
-    let intel_pstate = "/sys/devices/system/cpu/intel_pstate/no_turbo";
-    let cpufreq_boost = "/sys/devices/system/cpu/cpufreq/boost";
+    #[cfg(target_os = "windows")]
+    {
+        return crate::performance_windows::set_turbo_boost(enabled).await;
+    }
 
-    let value = if enabled { "0" } else { "1" }; // Inverted for no_turbo
-    let boost_value = if enabled { "1" } else { "0" };
+    #[cfg(not(target_os = "windows"))]
+    {
+        let intel_pstate = "/sys/devices/system/cpu/intel_pstate/no_turbo";
+        let cpufreq_boost = "/sys/devices/system/cpu/cpufreq/boost";
 
-    // Try Intel P-state first
-    if std::path::Path::new(intel_pstate).exists() {
-        let script_content = format!(
-            "#!/bin/bash\nset -e\necho {} > {}\nexit 0\n",
-            value, intel_pstate
-        );
+        let value = if enabled { "0" } else { "1" }; // Inverted for no_turbo
+        let boost_value = if enabled { "1" } else { "0" };
 
-        {
-            if let Ok(output) = crate::privileged::run_script(&script_content).await {
-                if output.status.success() {
-                    return ApiResponse {
-                        success: true,
-                        data: Some(format!(
-                            "Turbo boost {}",
-                            if enabled { "enabled" } else { "disabled" }
-                        )),
-                        error: None,
-                    };
+        // Try Intel P-state first
+        if std::path::Path::new(intel_pstate).exists() {
+            let script_content = format!(
+                "#!/bin/bash\nset -e\necho {} > {}\nexit 0\n",
+                value, intel_pstate
+            );
+
+            {
+                if let Ok(output) = crate::privileged::run_script(&script_content).await {
+                    if output.status.success() {
+                        return ApiResponse {
+                            success: true,
+                            data: Some(format!(
+                                "Turbo boost {}",
+                                if enabled { "enabled" } else { "disabled" }
+                            )),
+                            error: None,
+                        };
+                    }
                 }
             }
         }
-    }
 
-    // Try cpufreq boost
-    if std::path::Path::new(cpufreq_boost).exists() {
-        let script_content = format!(
-            "#!/bin/bash\nset -e\necho {} > {}\nexit 0\n",
-            boost_value, cpufreq_boost
-        );
+        // Try cpufreq boost
+        if std::path::Path::new(cpufreq_boost).exists() {
+            let script_content = format!(
+                "#!/bin/bash\nset -e\necho {} > {}\nexit 0\n",
+                boost_value, cpufreq_boost
+            );
 
-        {
-            if let Ok(output) = crate::privileged::run_script(&script_content).await {
-                if output.status.success() {
-                    return ApiResponse {
-                        success: true,
-                        data: Some(format!(
-                            "Turbo boost {}",
-                            if enabled { "enabled" } else { "disabled" }
-                        )),
-                        error: None,
-                    };
+            {
+                if let Ok(output) = crate::privileged::run_script(&script_content).await {
+                    if output.status.success() {
+                        return ApiResponse {
+                            success: true,
+                            data: Some(format!(
+                                "Turbo boost {}",
+                                if enabled { "enabled" } else { "disabled" }
+                            )),
+                            error: None,
+                        };
+                    }
                 }
             }
         }
-    }
 
-    ApiResponse {
-        success: false,
-        data: None,
-        error: Some("Failed to set turbo boost".to_string()),
+        ApiResponse {
+            success: false,
+            data: None,
+            error: Some("Failed to set turbo boost".to_string()),
+        }
     }
 }
 

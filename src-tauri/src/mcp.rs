@@ -386,11 +386,25 @@ pub async fn get_mcp_status(
 }
 
 #[tauri::command]
+#[allow(unreachable_code)]
 pub async fn start_mcp_server(
     state: tauri::State<'_, McpState>,
     host: String,
     port: u16,
 ) -> Result<ApiResponse<String>, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = (state, host, port);
+        return Ok(ApiResponse {
+            success: false,
+            data: None,
+            error: Some(
+                "AI Integration (MCP) is not available on Windows in this release: its tools expose ThinkPad fan, battery-threshold and cpufreq controls that have no Windows backend."
+                    .to_string(),
+            ),
+        });
+    }
+
     let mut s = state.lock().await;
 
     if s.cancel_token.is_some() {

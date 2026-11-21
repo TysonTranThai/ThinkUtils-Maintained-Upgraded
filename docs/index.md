@@ -3,7 +3,7 @@ layout: home
 hero:
   name: ThinkUtils
   text: Unlock Your ThinkPad's Full Potential
-  tagline: A powerful, native desktop application for complete control over fan speeds, battery health, CPU performance, and system monitoring on Linux.
+  tagline: A powerful, native desktop application for fan control, battery health, performance tuning, and system monitoring on Linux, with native monitoring, power plans and Defender scanning on Windows.
   image:
     src: /screenshots/home.png
     alt: ThinkUtils Home Dashboard

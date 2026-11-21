@@ -2,8 +2,30 @@ import { escapeHtml } from '../utils.js';
 // Monitor View
 const { invoke } = window.__TAURI__.core;
 import { setState, getState } from '../state.js';
+import { getCapabilities } from '../capabilities.js';
+
+function applyPlatformLabels() {
+  if (getCapabilities()?.platform !== 'windows') {
+    return;
+  }
+  // Windows has no load-average API. The backend reports an exponential moving
+  // average of busy CPUs, so the label must say so rather than imply a 1/5/15
+  // minute kernel value.
+  const label = document.getElementById('load-avg-label');
+  if (label) {
+    label.textContent = 'Load (approx.)';
+    label.title =
+      'Windows does not report a kernel load average. This is an exponential moving average of busy logical processors.';
+  }
+
+  const cpuHeader = document.querySelector('.process-col-cpu');
+  if (cpuHeader) {
+    cpuHeader.title = 'Lifetime average CPU usage, as reported for each process';
+  }
+}
 
 export async function startMonitoring() {
+  applyPlatformLabels();
   stopMonitoring();
   await updateMonitorData();
 

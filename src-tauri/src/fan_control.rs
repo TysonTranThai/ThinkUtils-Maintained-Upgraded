@@ -1,8 +1,13 @@
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+#[cfg(not(target_os = "windows"))]
+use regex::Regex;
+#[cfg(not(target_os = "windows"))]
 use std::fs;
+#[cfg(not(target_os = "windows"))]
 use std::process::Command;
+#[cfg(not(target_os = "windows"))]
 use tauri::{Emitter, Manager};
 
 const PROC_FAN: &str = "/proc/acpi/ibm/fan";
@@ -219,11 +224,26 @@ pub struct FanCapability {
 
 #[tauri::command]
 pub fn get_fan_capability() -> ApiResponse<FanCapability> {
-    let modprobe_conf_present = crate::hardware_root::read_to_string(MODPROBE_CONF_PATH)
-        .map(|c| c.contains("fan_control=1"))
-        .unwrap_or(false);
+    #[cfg(target_os = "windows")]
+    {
+        return ApiResponse {
+            success: true,
+            data: Some(FanCapability {
+                readiness: FanReadiness::NoThinkpadFan,
+                modprobe_conf_present: false,
+                message: "Windows does not expose the ThinkPad ACPI fan interface. Temperature monitoring may be available through ACPI thermal zones, but fan speed control is not.".to_string(),
+            }),
+            error: None,
+        };
+    }
 
-    let (readiness, message) = match crate::hardware_root::read_to_string(PROC_FAN) {
+    #[cfg(not(target_os = "windows"))]
+    {
+        let modprobe_conf_present = crate::hardware_root::read_to_string(MODPROBE_CONF_PATH)
+            .map(|c| c.contains("fan_control=1"))
+            .unwrap_or(false);
+
+        let (readiness, message) = match crate::hardware_root::read_to_string(PROC_FAN) {
         Err(_) => (
             FanReadiness::NoThinkpadFan,
             "No ThinkPad fan interface found. Load the thinkpad_acpi module, or this model may not be supported.".to_string(),
@@ -241,58 +261,74 @@ pub fn get_fan_capability() -> ApiResponse<FanCapability> {
         ),
     };
 
-    ApiResponse {
-        success: true,
-        data: Some(FanCapability {
-            readiness,
-            modprobe_conf_present,
-            message,
-        }),
-        error: None,
+        ApiResponse {
+            success: true,
+            data: Some(FanCapability {
+                readiness,
+                modprobe_conf_present,
+                message,
+            }),
+            error: None,
+        }
     }
 }
 
 /// Write the modprobe config and try to reload the module.
 #[tauri::command]
 pub async fn enable_fan_control() -> ApiResponse<String> {
-    // The reload can fail if the module is busy (an open /proc handle, a laptop
-    // dock driver holding it). That is not an error worth failing on -- the
-    // config file is written either way, so a reboot will apply it.
-    let script = format!(
+    #[cfg(target_os = "windows")]
+    {
+        return ApiResponse {
+            success: false,
+            data: None,
+            error: Some(
+                "Fan control is not available on Windows. thinkpad_acpi is a Linux kernel module."
+                    .to_string(),
+            ),
+        };
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        // The reload can fail if the module is busy (an open /proc handle, a laptop
+        // dock driver holding it). That is not an error worth failing on -- the
+        // config file is written either way, so a reboot will apply it.
+        let script = format!(
         "#!/bin/bash\nset -e\nprintf 'options thinkpad_acpi fan_control=1\\n' > {}\nmodprobe -r thinkpad_acpi 2>/dev/null && modprobe thinkpad_acpi 2>/dev/null || true\nexit 0\n",
         MODPROBE_CONF_PATH
     );
 
-    match crate::privileged::run_script(&script).await {
-        Ok(output) if output.status.success() => {
-            // Re-probe rather than assume the reload worked.
-            let now_ready = crate::hardware_root::read_to_string(PROC_FAN)
-                .map(|c| fan_control_is_enabled(&c))
-                .unwrap_or(false);
+        match crate::privileged::run_script(&script).await {
+            Ok(output) if output.status.success() => {
+                // Re-probe rather than assume the reload worked.
+                let now_ready = crate::hardware_root::read_to_string(PROC_FAN)
+                    .map(|c| fan_control_is_enabled(&c))
+                    .unwrap_or(false);
 
-            ApiResponse {
-                success: true,
-                data: Some(if now_ready {
-                    "Fan control enabled.".to_string()
-                } else {
-                    "Fan control configured. Reboot to activate it — the module could not be reloaded while in use.".to_string()
-                }),
-                error: None,
+                ApiResponse {
+                    success: true,
+                    data: Some(if now_ready {
+                        "Fan control enabled.".to_string()
+                    } else {
+                        "Fan control configured. Reboot to activate it — the module could not be reloaded while in use.".to_string()
+                    }),
+                    error: None,
+                }
             }
+            Ok(output) => ApiResponse {
+                success: false,
+                data: None,
+                error: Some(format!(
+                    "Could not enable fan control: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                )),
+            },
+            Err(e) => ApiResponse {
+                success: false,
+                data: None,
+                error: Some(format!("Could not enable fan control: {}", e)),
+            },
         }
-        Ok(output) => ApiResponse {
-            success: false,
-            data: None,
-            error: Some(format!(
-                "Could not enable fan control: {}",
-                String::from_utf8_lossy(&output.stderr)
-            )),
-        },
-        Err(e) => ApiResponse {
-            success: false,
-            data: None,
-            error: Some(format!("Could not enable fan control: {}", e)),
-        },
     }
 }
 
@@ -310,7 +346,20 @@ pub struct ApiResponse<T> {
 }
 
 #[tauri::command]
-pub fn get_sensor_data() -> ApiResponse<SensorData> {
+pub async fn get_sensor_data() -> ApiResponse<SensorData> {
+    #[cfg(target_os = "windows")]
+    {
+        return crate::fan_control_windows::get_sensor_data().await;
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        linux_get_sensor_data()
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn linux_get_sensor_data() -> ApiResponse<SensorData> {
     let mut temps = HashMap::new();
     let mut fans = HashMap::new();
 
@@ -382,127 +431,168 @@ pub fn get_sensor_data() -> ApiResponse<SensorData> {
 /// Write a single command to /proc/acpi/ibm/fan, elevating via the helper when
 /// a direct write is not permitted.
 pub async fn write_fan_command(command: &str) -> Result<(), String> {
-    if crate::hardware_root::is_simulated() {
-        return Ok(());
+    #[cfg(target_os = "windows")]
+    {
+        let _ = command;
+        return Err("Fan control is not available on Windows.".to_string());
     }
 
-    // 1. Try direct write (no elevation needed)
-    if fs::write(PROC_FAN, command).is_ok() {
-        return Ok(());
-    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        if crate::hardware_root::is_simulated() {
+            return Ok(());
+        }
 
-    // 2. Use dedicated helper if installed (passwordless via polkit rule)
-    if let Some(helper) = helper_path() {
-        match tokio::process::Command::new("pkexec")
-            .arg(helper)
-            .arg(command)
-            .output()
-            .await
-        {
-            Ok(output) if output.status.success() => {
-                return Ok(());
-            }
-            Ok(_) => {
-                return Err("Permission denied. Click 'Grant Permissions' to enable passwordless fan control.".to_string());
-            }
-            Err(e) => {
-                return Err(format!("Failed to execute helper: {}", e));
+        // 1. Try direct write (no elevation needed)
+        if fs::write(PROC_FAN, command).is_ok() {
+            return Ok(());
+        }
+
+        // 2. Use dedicated helper if installed (passwordless via polkit rule)
+        if let Some(helper) = helper_path() {
+            match tokio::process::Command::new("pkexec")
+                .arg(helper)
+                .arg(command)
+                .output()
+                .await
+            {
+                Ok(output) if output.status.success() => {
+                    return Ok(());
+                }
+                Ok(_) => {
+                    return Err("Permission denied. Click 'Grant Permissions' to enable passwordless fan control.".to_string());
+                }
+                Err(e) => {
+                    return Err(format!("Failed to execute helper: {}", e));
+                }
             }
         }
-    }
 
-    // 3. Fallback: secure temp script + pkexec (will prompt for password)
-    let script_content = format!(
-        "#!/bin/bash\nset -e\necho '{}' > {}\nexit 0\n",
-        command, PROC_FAN
-    );
+        // 3. Fallback: secure temp script + pkexec (will prompt for password)
+        let script_content = format!(
+            "#!/bin/bash\nset -e\necho '{}' > {}\nexit 0\n",
+            command, PROC_FAN
+        );
 
-    match crate::privileged::run_script(&script_content).await {
-        Ok(output) if output.status.success() => Ok(()),
-        Ok(_) => Err(
-            "Permission denied. Click 'Grant Permissions' to avoid repeated password prompts."
-                .to_string(),
-        ),
-        Err(e) => Err(format!("Failed to execute pkexec: {}", e)),
+        match crate::privileged::run_script(&script_content).await {
+            Ok(output) if output.status.success() => Ok(()),
+            Ok(_) => Err(
+                "Permission denied. Click 'Grant Permissions' to avoid repeated password prompts."
+                    .to_string(),
+            ),
+            Err(e) => Err(format!("Failed to execute pkexec: {}", e)),
+        }
     }
 }
 
 /// Read the current fan level from /proc/acpi/ibm/fan, if available.
 pub fn read_fan_level() -> Option<String> {
-    let content = crate::hardware_root::read_to_string(PROC_FAN).ok()?;
-    parse_fan_proc(&content).remove("level")
+    #[cfg(target_os = "windows")]
+    {
+        return None;
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let content = crate::hardware_root::read_to_string(PROC_FAN).ok()?;
+        parse_fan_proc(&content).remove("level")
+    }
 }
 
 pub async fn apply_fan_speed(app: &tauri::AppHandle, raw_speed: &str) -> Result<String, String> {
-    let speed = match raw_speed {
-        "full" | "max" => "full-speed",
-        s => s,
-    };
-
-    // Validate speed against whitelist
-    if !is_valid_speed(speed) {
-        return Err(format!("Invalid fan speed: {}", speed));
+    #[cfg(target_os = "windows")]
+    {
+        let _ = (app, raw_speed);
+        return Err("Fan control is not available on Windows.".to_string());
     }
 
-    // Reads may come from a captured hardware profile; writes never may. A test
-    // must not be able to believe it changed a real fan.
-    if crate::hardware_root::is_simulated() {
-        return Err(
-            "Running against a simulated hardware profile. Fan changes are disabled.".to_string(),
-        );
-    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let speed = match raw_speed {
+            "full" | "max" => "full-speed",
+            s => s,
+        };
 
-    println!("[Fan] Setting speed to: {}", speed);
-    let command_str = format!("level {}", speed);
+        // Validate speed against whitelist
+        if !is_valid_speed(speed) {
+            return Err(format!("Invalid fan speed: {}", speed));
+        }
 
-    // Check the module parameter before trying anything. If fan_control=1 is
-    // missing the kernel returns -EPERM no matter who we are, and telling the
-    // user to grant permissions sends them somewhere that cannot help.
-    if let Ok(content) = crate::hardware_root::read_to_string(PROC_FAN) {
-        if !fan_control_is_enabled(&content) {
+        // Reads may come from a captured hardware profile; writes never may. A test
+        // must not be able to believe it changed a real fan.
+        if crate::hardware_root::is_simulated() {
             return Err(
+                "Running against a simulated hardware profile. Fan changes are disabled."
+                    .to_string(),
+            );
+        }
+
+        println!("[Fan] Setting speed to: {}", speed);
+        let command_str = format!("level {}", speed);
+
+        // Check the module parameter before trying anything. If fan_control=1 is
+        // missing the kernel returns -EPERM no matter who we are, and telling the
+        // user to grant permissions sends them somewhere that cannot help.
+        if let Ok(content) = crate::hardware_root::read_to_string(PROC_FAN) {
+            if !fan_control_is_enabled(&content) {
+                return Err(
                 "The thinkpad_acpi module was loaded without fan_control=1, so the kernel will refuse fan changes. Enable it from the Fan Control page — this is a module setting, not a permissions problem.".to_string(),
             );
-        }
-    }
-
-    // Update target mode in supervisor so background task maintains it and keeps watchdog alive
-    let target_mode = match speed {
-        "auto" => crate::fan_curve::FanTargetMode::Auto,
-        "full-speed" => crate::fan_curve::FanTargetMode::FullSpeed,
-        s => crate::fan_curve::FanTargetMode::Manual(s.to_string()),
-    };
-
-    if let Some(state) = app.try_state::<crate::fan_curve::FanCurveState>() {
-        if let Ok(mut s) = state.lock() {
-            s.mode = target_mode;
-            s.curve_config.enabled = false;
-        }
-    }
-
-    match write_fan_command(&command_str).await {
-        Ok(_) => {
-            println!("[Fan] ✓ Speed set successfully to: {}", speed);
-            if speed != "auto" {
-                crate::fan_curve::arm_fan_watchdog().await;
             }
-            let _ = app.emit_to(
-                "main",
-                "fan-speed-changed",
-                serde_json::json!({ "speed": speed }),
-            );
-            let _ = app.emit("fan-speed-changed", serde_json::json!({ "speed": speed }));
-            Ok(format!("Fan speed set to: {}", speed))
         }
-        Err(e) => {
-            println!("[Fan] Failed to set fan speed: {}", e);
-            Err(e)
+
+        // Update target mode in supervisor so background task maintains it and keeps watchdog alive
+        let target_mode = match speed {
+            "auto" => crate::fan_curve::FanTargetMode::Auto,
+            "full-speed" => crate::fan_curve::FanTargetMode::FullSpeed,
+            s => crate::fan_curve::FanTargetMode::Manual(s.to_string()),
+        };
+
+        if let Some(state) = app.try_state::<crate::fan_curve::FanCurveState>() {
+            if let Ok(mut s) = state.lock() {
+                s.mode = target_mode;
+                s.curve_config.enabled = false;
+            }
+        }
+
+        match write_fan_command(&command_str).await {
+            Ok(_) => {
+                println!("[Fan] ✓ Speed set successfully to: {}", speed);
+                if speed != "auto" {
+                    crate::fan_curve::arm_fan_watchdog().await;
+                }
+                let _ = app.emit_to(
+                    "main",
+                    "fan-speed-changed",
+                    serde_json::json!({ "speed": speed }),
+                );
+                let _ = app.emit("fan-speed-changed", serde_json::json!({ "speed": speed }));
+                Ok(format!("Fan speed set to: {}", speed))
+            }
+            Err(e) => {
+                println!("[Fan] Failed to set fan speed: {}", e);
+                Err(e)
+            }
         }
     }
 }
 
 #[tauri::command]
+#[allow(unreachable_code)]
 pub async fn set_fan_speed(app: tauri::AppHandle, speed: String) -> ApiResponse<String> {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = (app, speed);
+        return ApiResponse {
+            success: false,
+            data: None,
+            error: Some(
+                "Fan control is not available on Windows. ThinkUtils does not write to the embedded controller."
+                    .to_string(),
+            ),
+        };
+    }
+
     match apply_fan_speed(&app, &speed).await {
         Ok(msg) => ApiResponse {
             success: true,
@@ -519,20 +609,32 @@ pub async fn set_fan_speed(app: tauri::AppHandle, speed: String) -> ApiResponse<
 
 #[tauri::command]
 pub fn check_permissions() -> ApiResponse<bool> {
-    // Check if direct write is possible
-    let direct_write = fs::OpenOptions::new().write(true).open(PROC_FAN).is_ok();
+    #[cfg(target_os = "windows")]
+    {
+        return ApiResponse {
+            success: false,
+            data: None,
+            error: Some("Fan control permissions do not apply on Windows.".to_string()),
+        };
+    }
 
-    // Check if the dedicated helper is installed (installed alongside the polkit rule).
-    // We only check the helper because /etc/polkit-1/rules.d/ is root-only,
-    // so Path::exists() on the polkit rule always fails for normal users.
-    let helper_installed = helper_path().is_some();
+    #[cfg(not(target_os = "windows"))]
+    {
+        // Check if direct write is possible
+        let direct_write = fs::OpenOptions::new().write(true).open(PROC_FAN).is_ok();
 
-    let has_permission = direct_write || helper_installed;
+        // Check if the dedicated helper is installed (installed alongside the polkit rule).
+        // We only check the helper because /etc/polkit-1/rules.d/ is root-only,
+        // so Path::exists() on the polkit rule always fails for normal users.
+        let helper_installed = helper_path().is_some();
 
-    ApiResponse {
-        success: true,
-        data: Some(has_permission),
-        error: None,
+        let has_permission = direct_write || helper_installed;
+
+        ApiResponse {
+            success: true,
+            data: Some(has_permission),
+            error: None,
+        }
     }
 }
 

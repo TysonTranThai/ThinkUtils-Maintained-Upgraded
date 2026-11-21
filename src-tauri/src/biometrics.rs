@@ -236,45 +236,78 @@ pub fn check_pam_status() -> bool {
     false
 }
 
+#[cfg(target_os = "windows")]
+fn windows_unsupported() -> BiometricActionResponse {
+    BiometricActionResponse {
+        success: false,
+        message: "Biometrics are managed by Windows Hello.".to_string(),
+        logs: Vec::new(),
+        error: Some(
+            "ThinkUtils does not manage fingerprint enrollment on Windows. Open Settings > Accounts > Sign-in options to manage Windows Hello."
+                .to_string(),
+        ),
+    }
+}
+
 #[tauri::command]
 pub fn get_fingerprint_status() -> FingerprintStatus {
-    let device = detect_fingerprint_device();
-    let fprintd_installed = Command::new("which")
-        .arg("fprintd-list")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false);
-
-    let service_active = if fprintd_installed {
-        Command::new("systemctl")
-            .args(["is-active", "fprintd"])
-            .output()
-            .map(|o| {
-                let text = String::from_utf8_lossy(&o.stdout);
-                text.trim() == "active" || text.trim() == "inactive" // service is loaded
-            })
-            .unwrap_or(false)
-    } else {
-        false
-    };
-
-    let mut enrolled_fingers = Vec::new();
-    if fprintd_installed {
-        let user = std::env::var("USER").unwrap_or_default();
-        if let Ok(output) = Command::new("fprintd-list").arg(&user).output() {
-            let text = String::from_utf8_lossy(&output.stdout);
-            enrolled_fingers = parse_fprintd_list_output(&text);
-        }
+    #[cfg(target_os = "windows")]
+    {
+        return FingerprintStatus {
+            device: FingerprintDeviceInfo {
+                found: false,
+                name: "Managed by Windows Hello".to_string(),
+                vendor_id: String::new(),
+                product_id: String::new(),
+                bus: None,
+            },
+            fprintd_installed: false,
+            service_active: false,
+            enrolled_fingers: Vec::new(),
+            pam_auth_enabled: false,
+        };
     }
 
-    let pam_fprintd = check_pam_status();
+    #[cfg(not(target_os = "windows"))]
+    {
+        let device = detect_fingerprint_device();
+        let fprintd_installed = Command::new("which")
+            .arg("fprintd-list")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
 
-    FingerprintStatus {
-        device,
-        fprintd_installed,
-        service_active,
-        enrolled_fingers,
-        pam_auth_enabled: pam_fprintd,
+        let service_active = if fprintd_installed {
+            Command::new("systemctl")
+                .args(["is-active", "fprintd"])
+                .output()
+                .map(|o| {
+                    let text = String::from_utf8_lossy(&o.stdout);
+                    text.trim() == "active" || text.trim() == "inactive" // service is loaded
+                })
+                .unwrap_or(false)
+        } else {
+            false
+        };
+
+        let mut enrolled_fingers = Vec::new();
+        if fprintd_installed {
+            let user = std::env::var("USER").unwrap_or_default();
+            if let Ok(output) = Command::new("fprintd-list").arg(&user).output() {
+                let text = String::from_utf8_lossy(&output.stdout);
+                enrolled_fingers = parse_fprintd_list_output(&text);
+            }
+        }
+
+        let pam_fprintd = check_pam_status();
+
+        FingerprintStatus {
+            device,
+            fprintd_installed,
+            service_active,
+            enrolled_fingers,
+            pam_auth_enabled: pam_fprintd,
+        }
     }
 }
 
@@ -287,53 +320,69 @@ pub fn get_biometric_overview() -> BiometricOverview {
 
 #[tauri::command]
 pub fn delete_fingerprint(finger: Option<String>) -> BiometricActionResponse {
-    let user = std::env::var("USER").unwrap_or_default();
-    let mut cmd = Command::new("fprintd-delete");
+    #[cfg(target_os = "windows")]
+    {
+        let _ = finger;
+        return windows_unsupported();
+    }
 
-    if let Some(ref f) = finger {
-        if !f.is_empty() {
-            cmd.args(["-f", f, &user]);
+    #[cfg(not(target_os = "windows"))]
+    {
+        let user = std::env::var("USER").unwrap_or_default();
+        let mut cmd = Command::new("fprintd-delete");
+
+        if let Some(ref f) = finger {
+            if !f.is_empty() {
+                cmd.args(["-f", f, &user]);
+            } else {
+                cmd.arg(&user);
+            }
         } else {
             cmd.arg(&user);
         }
-    } else {
-        cmd.arg(&user);
-    }
 
-    match cmd.output() {
-        Ok(out) => {
-            let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-            let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-            if out.status.success() {
-                BiometricActionResponse {
-                    success: true,
-                    message: "Fingerprint deleted successfully".to_string(),
-                    logs: vec![stdout],
-                    error: None,
-                }
-            } else {
-                BiometricActionResponse {
-                    success: false,
-                    message: "Failed to delete fingerprint".to_string(),
-                    logs: vec![stderr.clone()],
-                    error: Some(stderr),
+        match cmd.output() {
+            Ok(out) => {
+                let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+                let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+                if out.status.success() {
+                    BiometricActionResponse {
+                        success: true,
+                        message: "Fingerprint deleted successfully".to_string(),
+                        logs: vec![stdout],
+                        error: None,
+                    }
+                } else {
+                    BiometricActionResponse {
+                        success: false,
+                        message: "Failed to delete fingerprint".to_string(),
+                        logs: vec![stderr.clone()],
+                        error: Some(stderr),
+                    }
                 }
             }
+            Err(e) => BiometricActionResponse {
+                success: false,
+                message: "Failed to execute fprintd-delete".to_string(),
+                logs: vec![e.to_string()],
+                error: Some(e.to_string()),
+            },
         }
-        Err(e) => BiometricActionResponse {
-            success: false,
-            message: "Failed to execute fprintd-delete".to_string(),
-            logs: vec![e.to_string()],
-            error: Some(e.to_string()),
-        },
     }
 }
 
 #[tauri::command]
+#[allow(unreachable_code)]
 pub async fn enroll_fingerprint(
     app: tauri::AppHandle,
     finger: Option<String>,
 ) -> BiometricActionResponse {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = (app, finger);
+        return windows_unsupported();
+    }
+
     kill_active_fp_process();
 
     let target_finger = finger
@@ -507,7 +556,13 @@ pub async fn enroll_fingerprint(
 }
 
 #[tauri::command]
+#[allow(unreachable_code)]
 pub fn cancel_fingerprint_action() -> BiometricActionResponse {
+    #[cfg(target_os = "windows")]
+    {
+        return windows_unsupported();
+    }
+
     let pid = ACTIVE_FP_PID.swap(0, Ordering::SeqCst);
     if pid > 0 {
         let _ = Command::new("kill")
@@ -530,10 +585,17 @@ pub fn cancel_fingerprint_action() -> BiometricActionResponse {
 }
 
 #[tauri::command]
+#[allow(unreachable_code)]
 pub async fn verify_fingerprint(
     app: tauri::AppHandle,
     finger: Option<String>,
 ) -> BiometricActionResponse {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = (app, finger);
+        return windows_unsupported();
+    }
+
     kill_active_fp_process();
 
     let user = std::env::var("USER").unwrap_or_default();
@@ -683,7 +745,14 @@ pub async fn verify_fingerprint(
 }
 
 #[tauri::command]
+#[allow(unreachable_code)]
 pub async fn install_fingerprint_packages(app: tauri::AppHandle) -> BiometricActionResponse {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = app;
+        return windows_unsupported();
+    }
+
     let script = "\
 export DEBIAN_FRONTEND=noninteractive
 echo '=== [1/3] Updating package repositories ==='
@@ -823,7 +892,13 @@ echo '=== ALL_DONE ==='
 }
 
 #[tauri::command]
+#[allow(unreachable_code)]
 pub fn configure_biometric_pam() -> BiometricActionResponse {
+    #[cfg(target_os = "windows")]
+    {
+        return windows_unsupported();
+    }
+
     let result = crate::pam::execute_pam_repair();
     BiometricActionResponse {
         success: result.success,

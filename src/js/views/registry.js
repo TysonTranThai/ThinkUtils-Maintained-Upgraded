@@ -82,7 +82,7 @@ export const VIEWS = [
   {
     id: 'system',
     title: 'System Info',
-    subtitle: 'Your ThinkPad details',
+    subtitle: 'Hardware and operating system details',
     element: 'systemView',
     display: 'block',
     onShow: loadSystemInfo
@@ -98,7 +98,7 @@ export const VIEWS = [
   {
     id: 'mcp',
     title: 'AI Integration',
-    subtitle: 'Connect AI assistants to your ThinkPad via MCP',
+    subtitle: 'Connect AI assistants to your computer via MCP',
     element: 'mcpView',
     display: 'block',
     onShow: () => {

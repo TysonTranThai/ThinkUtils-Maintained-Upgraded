@@ -1,5 +1,6 @@
 // Settings Manager - Centralized settings loading and saving
 const { invoke } = window.__TAURI__.core;
+import { isAvailable } from './capabilities.js';
 
 let currentSettings = null;
 
@@ -61,6 +62,10 @@ export function getCurrentSettings() {
  * Apply fan control settings (only if permissions are available)
  */
 export async function applyFanSettings(settings) {
+  if (!isAvailable('fan')) {
+    return;
+  }
+
   // Check if we have permissions before trying to set fan speed,
   // otherwise this would trigger a pkexec password prompt on startup.
   try {
@@ -92,6 +97,7 @@ export async function applyBatterySettings(settings = null) {
   try {
     if (
       settings &&
+      isAvailable('battery_thresholds') &&
       typeof settings.battery_start_threshold === 'number' &&
       typeof settings.battery_stop_threshold === 'number'
     ) {
@@ -130,7 +136,7 @@ export async function applyBatterySettings(settings = null) {
  */
 export async function applyPerformanceSettings(settings) {
   // CPU Governor
-  if (settings.cpu_governor) {
+  if (isAvailable('performance_governor') && settings.cpu_governor) {
     try {
       await invoke('set_cpu_governor', { governor: settings.cpu_governor });
     } catch (error) {
@@ -139,7 +145,7 @@ export async function applyPerformanceSettings(settings) {
   }
 
   // Turbo Boost
-  if (settings.turbo_boost_enabled !== undefined) {
+  if (isAvailable('performance_turbo') && settings.turbo_boost_enabled !== undefined) {
     try {
       await invoke('set_turbo_boost', { enabled: settings.turbo_boost_enabled });
     } catch (error) {
@@ -148,7 +154,7 @@ export async function applyPerformanceSettings(settings) {
   }
 
   // Power Profile
-  if (settings.power_profile) {
+  if (isAvailable('performance_power_profile') && settings.power_profile) {
     try {
       await invoke('set_power_profile', { profile: settings.power_profile });
     } catch (error) {

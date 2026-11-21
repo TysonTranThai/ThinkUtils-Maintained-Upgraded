@@ -286,6 +286,74 @@ body {
   border-radius: 0 2px 2px 0;
 }
 
+/* Capability-gated navigation items. Unsupported features stay visible so the
+   user can see what the app would do, but cannot be opened. */
+.menu-item.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.menu-item.disabled:hover {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.menu-item.limited .menu-status-badge {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.menu-status-badge {
+  margin-left: auto;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted, var(--text-secondary));
+  background: var(--bg-tertiary);
+  white-space: nowrap;
+}
+
+/* Explanation cards inserted where a hardware-specific control was hidden. */
+.capability-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 12px 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--text-secondary);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.capability-notice strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.capability-notice.capability-monitoring_only,
+.capability-notice.capability-partial {
+  border-left-color: #38bdf8;
+}
+
+.capability-notice.capability-admin_required {
+  border-left-color: #f59e0b;
+}
+
+.capability-notice.capability-unsupported {
+  border-left-color: #6b7280;
+}
+
+.home-settings-grid > .capability-notice {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
 .sidebar-footer {
   width: 100%;
   padding: 0 8px;

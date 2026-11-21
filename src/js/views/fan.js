@@ -4,8 +4,29 @@ import { elements } from '../dom.js';
 import { setState, getState } from '../state.js';
 import { showStatus, escapeHtml } from '../utils.js';
 import { initFanCurve, startCurveMode, stopCurveMode } from '../fanCurve.js';
+import { getCapability, isAvailable } from '../capabilities.js';
+
+/// On machines without a writable ThinkPad fan interface the page stays open
+/// for temperature monitoring, but every control is hidden by the capability
+/// marker in the template. This keeps the remaining status text honest.
+function applyFanCapability() {
+  const capability = getCapability('fan');
+  if (!capability || capability.status === 'supported') {
+    return;
+  }
+
+  if (elements.currentMode) {
+    elements.currentMode.textContent =
+      capability.status === 'monitoring_only' ? 'MONITOR' : 'LIMITED';
+  }
+  if (elements.permissionHelper) {
+    elements.permissionHelper.style.display = 'none';
+  }
+}
 
 export function setupFanControl() {
+  applyFanCapability();
+
   elements.slider.addEventListener('input', (e) => {
     elements.sliderValue.textContent = e.target.value;
   });
@@ -40,6 +61,16 @@ export function setupFanControl() {
 }
 
 export async function checkInitialPermissions() {
+  // polkit and /proc/acpi/ibm/fan do not exist on Windows. The permission
+  // banner is part of the hidden control section there, but check anyway so a
+  // successful setup on a future platform cannot reveal it by accident.
+  if (!isAvailable('fan')) {
+    if (elements.permissionHelper) {
+      elements.permissionHelper.style.display = 'none';
+    }
+    return;
+  }
+
   try {
     const response = await invoke('check_permissions');
     if (!response.success || !response.data) {
@@ -91,8 +122,8 @@ function updateFanDisplay(fans) {
   elements.fanMetrics.innerHTML = '';
 
   if (Object.keys(fans).length === 0) {
-    elements.fanMetrics.innerHTML =
-      '<div class="metric-row"><span class="metric-label">No data</span></div>';
+    const label = isAvailable('fan') ? 'No data' : 'Fan speed is not exposed on this platform';
+    elements.fanMetrics.innerHTML = `<div class="metric-row"><span class="metric-label">${escapeHtml(label)}</span></div>`;
     return;
   }
 

@@ -54,18 +54,15 @@ fn create_secure_script(content: &str) -> Result<String, String> {
     Ok(path)
 }
 
-#[cfg(not(unix))]
-fn create_secure_script(content: &str) -> Result<String, String> {
-    let path = format!("/tmp/thinkutils_{}.sh", std::process::id());
-    std::fs::write(&path, content)
-        .map_err(|e| format!("Failed to create privileged script: {}", e))?;
-    Ok(path)
-}
-
 /// Run a script as root via pkexec, then remove it.
 ///
 /// The script is always cleaned up, including when pkexec fails to launch —
 /// the previous copies leaked the file on some error paths.
+///
+/// Windows has no pkexec and no POSIX shell. Every caller is gated to Linux, so
+/// this returns an explicit error rather than writing a script to a path that
+/// does not exist there.
+#[cfg(unix)]
 pub async fn run_script(script: &str) -> Result<Output, String> {
     let path = create_secure_script(script)?;
 
@@ -78,6 +75,11 @@ pub async fn run_script(script: &str) -> Result<Output, String> {
 
     let _ = std::fs::remove_file(&path);
     result
+}
+
+#[cfg(not(unix))]
+pub async fn run_script(_script: &str) -> Result<Output, String> {
+    Err("Privileged shell scripts are not supported on this platform.".to_string())
 }
 
 #[cfg(test)]

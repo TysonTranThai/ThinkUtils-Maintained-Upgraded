@@ -27,7 +27,7 @@
       >
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
       </svg>
-      <span>ClamAV Antivirus</span>
+      <span id="antivirus-tab-label">ClamAV Antivirus</span>
     </button>
   </div>
 
@@ -435,7 +435,7 @@
           </svg>
         </div>
         <div class="security-header-info">
-          <h3>ClamAV Antivirus</h3>
+          <h3 id="antivirus-status-title">ClamAV Antivirus</h3>
           <div class="security-status">
             <span id="clamav-status-badge" class="badge badge-info">Checking...</span>
             <span id="clamav-status-text" class="security-status-text">Loading...</span>
@@ -460,8 +460,8 @@
           </svg>
         </div>
         <div class="banner-content">
-          <h4>ClamAV Not Installed</h4>
-          <p>
+          <h4 id="antivirus-install-title">ClamAV Not Installed</h4>
+          <p id="antivirus-install-description">
             ClamAV is an open-source antivirus engine for detecting trojans, viruses, malware and
             other malicious threats.
           </p>
@@ -533,7 +533,7 @@
       <div id="security-controls-section" style="display: none">
         <div class="info-list">
           <div class="info-item">
-            <span class="info-label">Database Version</span>
+            <span class="info-label" id="antivirus-engine-label">Database Version</span>
             <span id="db-version" class="info-value">--</span>
           </div>
           <div class="info-item">
@@ -541,7 +541,7 @@
             <span id="db-last-update" class="info-value">--</span>
           </div>
           <div class="info-item">
-            <span class="info-label">Virus Definitions</span>
+            <span class="info-label" id="antivirus-signature-label">Virus Definitions</span>
             <span id="db-definitions" class="info-value">--</span>
           </div>
         </div>
@@ -649,7 +649,7 @@
       <div id="scan-results-content">
         <div class="scan-summary">
           <div class="scan-summary-item">
-            <span class="summary-label">Files Scanned</span>
+            <span class="summary-label" id="scan-files-label">Files Scanned</span>
             <span id="scan-files-count" class="summary-value">0</span>
           </div>
           <div class="scan-summary-item">

@@ -1,8 +1,25 @@
 // Performance View
 const { invoke } = window.__TAURI__.core;
 import { setPowerProfile, setCpuGovernor, setTurboBoost, bindOnce } from '../hardwareControls.js';
+import { getCapabilities } from '../capabilities.js';
+
+function applyPlatformLabels() {
+  if (getCapabilities()?.platform !== 'windows') {
+    return;
+  }
+
+  // Windows has no Linux-style governor, but CallNtPowerInformation still gives
+  // a real frequency. Rename the row instead of leaving a misleading value.
+  const governorItem = document.getElementById('cpu-governor')?.closest('.info-item');
+  const governorLabel = governorItem?.querySelector('.info-label');
+  if (governorLabel) {
+    governorLabel.textContent = 'Frequency Control';
+  }
+}
 
 export async function loadPerformanceInfo() {
+  applyPlatformLabels();
+
   try {
     const cpuResponse = await invoke('get_cpu_info');
     if (cpuResponse.success && cpuResponse.data) {
@@ -24,9 +41,18 @@ export async function loadPerformanceInfo() {
 }
 
 function displayCpuInfo(info) {
-  document.getElementById('cpu-governor').textContent = info.governor;
+  const isWindows = getCapabilities()?.platform === 'windows';
+  document.getElementById('cpu-governor').textContent = isWindows
+    ? 'Windows-managed'
+    : info.governor;
   document.getElementById('cpu-freq').textContent = `${info.current_freq} MHz`;
-  document.getElementById('cpu-freq-range').textContent = `${info.min_freq} - ${info.max_freq} MHz`;
+  const range =
+    info.min_freq > 0
+      ? `${info.min_freq} - ${info.max_freq} MHz`
+      : info.max_freq > 0
+        ? `${info.max_freq} MHz (max)`
+        : 'Not reported';
+  document.getElementById('cpu-freq-range').textContent = range;
 
   const container = document.getElementById('governor-buttons');
   container.innerHTML = '';

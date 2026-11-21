@@ -37,6 +37,7 @@ import { openDialog, closeDialog } from './dialog.js';
 import { state, setState } from './state.js';
 import { initializeSettings } from './settingsManager.js';
 import { isModularMode, loadTemplates, injectTemplates } from './templateLoader.js';
+import { loadCapabilities, applyCapabilityUi } from './capabilities.js';
 
 async function checkAndSetupPermissions() {
   console.log('[Permissions] Checking permission status...');
@@ -160,6 +161,12 @@ async function initializeApp() {
       reportError(`init step ${name} failed: ${error?.message ?? error}`);
     }
   };
+
+  // Ask the backend what this machine supports before any view is wired. A
+  // failed query leaves everything visible, which is the pre-port behaviour:
+  // a click then reports the backend error instead of hiding working features.
+  await loadCapabilities();
+  step('capabilities', applyCapabilityUi);
 
   step('titlebar', setupTitlebar);
   step('navigation', setupFeatureNavigation);
